@@ -132,12 +132,12 @@ function RK4_Step!(f,y0,t0,h,p)
 end
 
 function get_index_and_distance(s,dx)
-    #if s < 0
-        #s = s + L
-    #end
-    #if s > L
-        #s = s - L 
-    #end
+    if s < 0
+        s = s + L
+    end
+    if s > L
+        s = s - L 
+    end
     j = convert(Int64, s ÷ dx) + 1 #find the grid space where it is.
     y = s % dx #how far is there 
     return j, y
