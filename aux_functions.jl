@@ -252,17 +252,10 @@ function RHSC(u,t,p_RHSC)
         du[N+i] = - Efield
     end
 
-    if false
-      du[2N+1] =  (S[J] + S[1])/n0/2
-      for j in 2:J
-        du[2N+j] =  (S[j-1] + S[j])/n0/2 # particles have negative sign!
-      end
-    end
-    if true
       for j in 1:J
         du[2N+j] =  S[j]/n0 # particles have negative sign!
       end
-    end
+
     return du[:]
 end
 
@@ -330,6 +323,7 @@ end
 function get_energy(u,p)
   L, N, J = p
   dx = L/J
+  n0 = N/L
   energy_K = 0.0
   energy_E = 0.0
   for i in 1:N
@@ -339,6 +333,6 @@ function get_energy(u,p)
     energy_E = energy_E + u[2N+j]^2
   end
   
-  return (energy_K + dx*energy_E)/2
+  return energy_K/2,  dx*energy_E /2 * n0
 end
 
