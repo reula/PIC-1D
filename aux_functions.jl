@@ -70,23 +70,52 @@ function get_density!(r, n, dx)
 end
 
 function get_density!(u, n, p)
-  L, N, J, κ, dx = p
+  L, N, J, κ, dx, order = p
   r = view(u,1:N)
   fill!(n,0.0)
   # Evaluate number density.
   for i in 1:N
-    j, y = get_index_and_distance(r[i],dx,L)
+    j, y = get_index_and_y(r[i],J,L)
     #if j < 1
     #    error("j = $j")
     #end 
-    n[j] += (1. - y) / dx;
-    if (j == J) 
-        n[1] += y / dx
-    else 
+    if order == 1
+      n[j] += (1. - y) / dx;
+      if (j == J) 
+          n[1] += y / dx
+      else 
         n[j+1] += y / dx
+      end
+    end
+    if order == 2
+      if y <= 1/2
+        n[j] += (3/4 - y^2) / dx
+        if j == 1
+          n[J] += (1-2y)^2/8 / dx
+          n[2] += (1+2y)^2/8 / dx
+        elseif j==J
+          n[1] += (1+2y)^2/8 / dx
+          n[J-1] += (1-2y)^2/8 / dx
+        else
+          n[j+1] += (1+2y)^2/8 / dx
+          n[j-1] += (1-2y)^2/8 / dx
+        end
+      elseif y <= 3/2
+        n[j] += (3 - 2y)^2/8 / dx
+        if j == J-1
+          n[J] += (3/4 - (1-y)^2) / dx
+          n[1] += (1-2y)^2/8 / dx
+        elseif j==J
+          n[1] += (3/4 - (1-y)^2) / dx
+          n[2] += (1-2y)^2/8 / dx
+        else
+          n[j+1] += (3/4 - (1-y)^2) / dx
+          n[j+2] += (1-2y)^2/8 / dx
+        end
+      end
     end
   end
-  #n .= n/n0 - 1.0 # return rho directly
+    #n .= n/n0 - 1.0 # return rho directly
 end
 
 """The routine below evaluates the electron current on an evenly spaced mesh given the instantaneous electron coordinates.
@@ -95,21 +124,51 @@ end
 // array r(0:N-1) of electron coordinates.
 """
 function get_current!(u, S, p)
-  L, N, J, κ, dx = p
+  L, N, J, κ, dx, order = p
   r = view(u,1:N)
   v = view(u,N+1:2N)
   fill!(S,0.0)
   # Evaluate number density.
   for i in 1:N
-    j, y = get_index_and_distance(r[i],dx,L)
+    #j, y = get_index_and_distance(r[i],dx,L)
+    j, y = get_index_and_y(r[i],J,L)
     #if j < 1 || j > J
     #    error("j = $j")
     #end 
-    S[j] += (1. - y)*v[i] / dx;
-    if (j == J) 
+    if order == 1
+      S[j] += (1. - y)*v[i] / dx;
+      if (j == J) 
         S[1] += y*v[i] / dx
-    else 
+      else 
         S[j+1] += y*v[i] / dx
+      end
+    end
+    if order == 2
+      if y <= 1/2
+        S[j] += (3/4 - y^2) *v[i] / dx
+        if j == 1
+          S[J] += (1-2y)^2/8 *v[i] / dx
+          S[2] += (1+2y)^2/8 *v[i] / dx
+        elseif j==J
+          S[1] += (1+2y)^2/8 *v[i] / dx
+          S[J-1] += (1-2y)^2/8 *v[i] / dx
+        else
+          S[j+1] += (1+2y)^2/8 *v[i] / dx
+          S[j-1] += (1-2y)^2/8 *v[i] / dx
+        end
+      elseif y <= 3/2
+        S[j] += (3 - 2y)^2/8 *v[i] / dx
+        if j == J-1
+          S[J] += (3/4 - (1-y)^2) *v[i] / dx
+          S[1] += (1-2y)^2/8 *v[i] / dx
+        elseif j==J
+          S[1] += (3/4 - (1-y)^2) *v[i] / dx
+          S[2] += (1-2y)^2/8 *v[i] / dx
+        else
+          S[j+1] += (3/4 - (1-y)^2) *v[i] / dx
+          S[j+2] += (1-2y)^2/8 *v[i] / dx
+        end
+      end
     end
   end
 end
@@ -130,8 +189,8 @@ function RHS(u,t,p_RHC)
     get_E_from_ϕ!(ϕ,E,dx)
 
     for i in 1:N
-        j, y = get_index_and_distance(u[i],dx,L)
-        
+        #j, y = get_index_and_distance(u[i],dx,L)
+        j, y = get_index_and_y(u[i],J,L)
         if (j == J)
             Efield = E[j] * (1. - y) + E[1] * y;
         else
@@ -152,20 +211,41 @@ uses several functions which are passed as parameters
 p = N, J, L, dx, n, S, du, get_current! 
 """
 function RHSC(u,t,p_RHSC)
-  N, J, L, dx, n, S, du, get_density!, get_current! = p_RHSC
-    p = L, N, J, κ, dx
+  N, J, L, dx, order, n, S, du, get_density!, get_current! = p_RHSC
+    p = L, N, J, κ, dx, order
     #get_density!(u, n, p)
     get_current!(u, S, p)
     E = view(u,2N+1:2N+J)
     n0 = N/L
 
     for i in 1:N
-        j, y = get_index_and_distance(u[i],dx,L)
+        #j, y = get_index_and_distance(u[i],dx,L)
+        j, y = get_index_and_y(u[i],J,L)
         
-        if (j == J)
-            Efield = E[j] * (1. - y) + E[1] * y;
-        else
-            Efield = E[j] * (1. - y) + E[j+1] * y;
+        if order == 1
+          if (j == J)
+              Efield = E[j] * (1. - y) + E[1] * y;
+          else
+              Efield = E[j] * (1. - y) + E[j+1] * y;
+          end
+        elseif order == 2
+          if y <= 1/2
+            if j == 1
+              Efield = E[j] * (3/4 - y^2) + E[2] * (1+2y)^2/8 + E[J] * (1-2y)^2/8
+            elseif j==J
+              Efield = E[j] * (3/4 - y^2) + E[1] * (1+2y)^2/8 + E[J-1] * (1-2y)^2/8
+            else
+              Efield = E[j] * (3/4 - y^2) + E[j+1] * (1+2y)^2/8 + E[j-1] * (1-2y)^2/8
+            end
+          elseif y <= 3/2
+            if j == J-1
+              Efield = E[j] * (3 - 2y)^2/8 + E[J] * (3/4 - (1-y)^2) + E[1] * (1-2y)^2/8
+            elseif j == J
+              Efield = E[j] * (3 - 2y)^2/8 + E[1] * (3/4 - (1-y)^2) + E[2] * (1-2y)^2/8
+            else
+              Efield = E[j] * (3 - 2y)^2/8 + E[j+1] * (3/4 - (1-y)^2) + E[j+2] * (1-2y)^2/8
+            end
+          end
         end
 
         du[i] = u[N+i]
@@ -225,10 +305,40 @@ function get_index_and_distance(s,dx,L)
     if s > L
         s = s - L 
     end
-    j = convert(Int64, s ÷ dx) + 1 #find the grid space where it is.
+    j = floor(Int64, s ÷ dx) + 1 #find the grid space where it is.
     if j > J || j < 1
       error("j = $j")
     end
     y = (s % dx)/dx #how far is there 
     return j, y
 end
+
+"""
+given a number s in between x_j and x_{j+1} computes y = (s - x_j)/dx and return j and y.
+get_index_and_y(0.4,2,1)
+dx = 0.5, j = 1, y = 0.4/0.5 = 0.8
+get_index_and_y(0.7,2,1) = j = 2, 0.2/0.5= 0.4
+"""
+function get_index_and_y(s,J,L)
+  s = (s/L*J + J)%J
+  j = floor(Int,s) + 1
+  #j = convert(Int64,s) + 1
+  y = (s%1)
+  return j, y
+end
+
+function get_energy(u,p)
+  L, N, J = p
+  dx = L/J
+  energy_K = 0.0
+  energy_E = 0.0
+  for i in 1:N
+    energy_K = energy_K + u[N+i]^2
+  end
+  for j in 1:J
+    energy_E = energy_E + u[2N+j]^2
+  end
+  
+  return (energy_K + dx*energy_E)/2
+end
+
