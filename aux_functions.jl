@@ -118,6 +118,23 @@ function get_density!(u, n, p)
     #n .= n/n0 - 1.0 # return rho directly
 end
 
+function get_density_new!(u, n, p)
+  L, N, J, κ, dx, order = p
+  r = view(u,1:N)
+  fill!(n,0.0)
+  # Evaluate number density.
+  for i in 1:N
+    j, y = get_index_and_y(r[i],J,L)
+
+    #R = 2*order 
+    for l in (-order):order 
+      n[mod1(j + l, J)] += W(order, -y + l) / dx;
+    end
+  end
+    #n .= n/n0 - 1.0 # return rho directly
+end
+
+
 """The routine below evaluates the electron current on an evenly spaced mesh given the instantaneous electron coordinates.
 
 // Evaluates electron number density S(0:J-1) from 
@@ -335,4 +352,18 @@ function get_energy(u,p)
   
   return energy_K/2,  dx*energy_E /2 * n0
 end
+
+function W(order::Int,y::Float64)
+  #y_ab = abs(y)
+  if order == 1
+    return  (abs(y) <= 1) ? 1 - abs(y) : 0
+  elseif order == 2
+    return (abs(y) <= 1/2) ? 3/4 - y^2  : ((abs(y) > 1/2) && (abs(y) <= 3/2) ? (3 - 2*abs(y))^2 / 8 : 0)
+  elseif order == 3
+    return (abs(y) < 1) ? 2/3 - y^2 + abs(y)^3 / 2 : ((abs(y) > 1) && (abs(y) <= 2) ? (2 - abs(y))^3 / 6 : 0)
+  else
+    error("order = $order not yet implemented ")
+  end
+end
+
 
