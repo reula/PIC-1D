@@ -69,7 +69,7 @@ function get_density!(r, n, dx)
   end
 end
 
-function get_density!(u, n, p)
+function get_density_old!(u, n, p)
   L, N, J, κ, dx, order = p
   r = view(u,1:N)
   fill!(n,0.0)
@@ -118,15 +118,13 @@ function get_density!(u, n, p)
     #n .= n/n0 - 1.0 # return rho directly
 end
 
-function get_density_new!(u, n, p)
+function get_density!(u, n, p)
   L, N, J, κ, dx, order = p
   r = view(u,1:N)
   fill!(n,0.0)
   # Evaluate number density.
   for i in 1:N
     j, y = get_index_and_y(r[i],J,L)
-
-    #R = 2*order 
     for l in (-order):order 
       n[mod1(j + l, J)] += W(order, -y + l) / dx;
     end
@@ -140,7 +138,7 @@ end
 // Evaluates electron number density S(0:J-1) from 
 // array r(0:N-1) of electron coordinates.
 """
-function get_current!(u, S, p)
+function get_current_old!(u, S, p)
   L, N, J, κ, dx, order = p
   r = view(u,1:N)
   v = view(u,N+1:2N)
@@ -190,6 +188,19 @@ function get_current!(u, S, p)
   end
 end
 
+function get_current!(u, S, p)
+  L, N, J, κ, dx, order = p
+  r = view(u,1:N)
+  v = view(u,N+1:2N)
+  fill!(S,0.0)
+
+  for i in 1:N
+    j, y = get_index_and_y(r[i],J,L)
+    for l in (-order):order 
+      S[mod1(j + l, J)] += W(order, -y + l) * v[i] / dx;
+    end
+  end
+end
 
 """
 Calculates the RHS of the evolution equation. 
@@ -227,7 +238,7 @@ Returns du
 uses several functions which are passed as parameters
 p = N, J, L, dx, n, S, du, get_current! 
 """
-function RHSC(u,t,p_RHSC)
+function RHSC_old(u,t,p_RHSC)
   N, J, L, dx, order, n, S, du, get_density!, get_current! = p_RHSC
     p = L, N, J, κ, dx, order
     #get_density!(u, n, p)
@@ -263,6 +274,33 @@ function RHSC(u,t,p_RHSC)
               Efield = E[j] * (3 - 2y)^2/8 + E[j+1] * (3/4 - (1-y)^2) + E[j+2] * (1-2y)^2/8
             end
           end
+        end
+
+        du[i] = u[N+i]
+        du[N+i] = - Efield
+    end
+
+      for j in 1:J
+        du[2N+j] =  S[j]/n0 # particles have negative sign!
+      end
+
+    return du[:]
+end
+
+function RHSC(u,t,p_RHSC)
+  N, J, L, dx, order, n, S, du, get_density!, get_current! = p_RHSC
+    p = L, N, J, κ, dx, order
+    #get_density!(u, n, p)
+    get_current!(u, S, p)
+    E = view(u,2N+1:2N+J)
+    n0 = N/L
+    
+    for i in 1:N
+        #j, y = get_index_and_distance(u[i],dx,L)
+        j, y = get_index_and_y(u[i],J,L)
+        Efield = 0.0
+        for l in (-order):order 
+          Efield += E[mod1(j+l,J)] * W(order, -y + l)
         end
 
         du[i] = u[N+i]
@@ -354,13 +392,15 @@ function get_energy(u,p)
 end
 
 function W(order::Int,y::Float64)
-  #y_ab = abs(y)
+  y = abs(y)
   if order == 1
-    return  (abs(y) <= 1) ? 1 - abs(y) : 0
+    return  (y <= 1) ? 1 - y : 0
   elseif order == 2
-    return (abs(y) <= 1/2) ? 3/4 - y^2  : ((abs(y) > 1/2) && (abs(y) <= 3/2) ? (3 - 2*abs(y))^2 / 8 : 0)
+    return (y <= 1/2) ? 3/4 - y^2  : (((y > 1/2) && (y <= 3/2)) ? (3 - 2*y)^2 / 8 : 0)
   elseif order == 3
-    return (abs(y) < 1) ? 2/3 - y^2 + abs(y)^3 / 2 : ((abs(y) > 1) && (abs(y) <= 2) ? (2 - abs(y))^3 / 6 : 0)
+    return (y < 1) ? 2/3 - y^2 + y^3 / 2 : (((y > 1) && (y <= 2)) ? (2 - y)^3 / 6 : 0)
+  elseif order == 4
+    return (y <= 1/2) ? 115/192 - 5y^2/8 + y^4/4 : (((y > 1/2) && (y <= 3/2)) ? (55 + 20y -120y^2 + 80y^3 - 16y^4)/96 : (((y > 3/2) && (y < 5/2)) ? (5 - 2y)^4/384 : 0))
   else
     error("order = $order not yet implemented ")
   end
