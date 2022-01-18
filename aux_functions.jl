@@ -43,6 +43,15 @@ function get_ϕ!(ϕ, ρ, κ)
   ϕ[:] = irfft(V,J)
 end
 
+"""
+Takes out the mass of the grid function so that the sum is now null
+"""
+function filter_constant!(E)
+  J = length(E)
+  V = rfft(E)
+  V[1] = 0.0 #extract the first component
+  E[:] = irfft(V,J)
+end
 
 """The routine below evaluates the electron number density on an evenly spaced mesh given the instantaneous electron coordinates.
 
@@ -296,15 +305,14 @@ function RHSC(u,t,p_RHSC)
     n0 = N/L
     
     for i in 1:N
-        #j, y = get_index_and_distance(u[i],dx,L)
-        j, y = get_index_and_y(u[i],J,L)
-        Efield = 0.0
-        for l in (-order):order 
-          Efield += E[mod1(j+l,J)] * W(order, -y + l)
-        end
+        #j, y = get_index_and_y(u[i],J,L)
+        #Efield = 0.0
+        #for l in (-order):order 
+        #  Efield += E[mod1(j+l,J)] * W(order, -y + l)
+        #end
 
         du[i] = u[N+i]
-        du[N+i] = - Efield
+        du[N+i] = - Interpolate(order, E, u[i], J, L)
     end
 
       for j in 1:J
@@ -393,12 +401,14 @@ end
 
 function W(order::Int,y::Float64)
   y = abs(y)
-  if order == 1
+  if order == 0
+    return  (y <= 1/2) ? 1 : 0
+  elseif order ==1
     return  (y <= 1) ? 1 - y : 0
   elseif order == 2
     return (y <= 1/2) ? 3/4 - y^2  : (((y > 1/2) && (y <= 3/2)) ? (3 - 2*y)^2 / 8 : 0)
   elseif order == 3
-    return (y < 1) ? 2/3 - y^2 + y^3 / 2 : (((y > 1) && (y <= 2)) ? (2 - y)^3 / 6 : 0)
+    return (y <= 1) ? 2/3 - y^2 + y^3 / 2 : (((y > 1) && (y <= 2)) ? (2 - y)^3 / 6 : 0)
   elseif order == 4
     return (y <= 1/2) ? 115/192 - 5y^2/8 + y^4/4 : (((y > 1/2) && (y <= 3/2)) ? (55 + 20y -120y^2 + 80y^3 - 16y^4)/96 : (((y > 3/2) && (y < 5/2)) ? (5 - 2y)^4/384 : 0))
   elseif order == 5
@@ -408,4 +418,11 @@ function W(order::Int,y::Float64)
   end
 end
 
-
+function Interpolate(order, vector, x, J, L)
+  j, y = get_index_and_y(x,J,L)
+  vi = 0.0
+    for l in (-order+1):order 
+      vi += vector[mod1(j+l,J)] * W(order, -y + l)
+    end
+  return vi
+end
