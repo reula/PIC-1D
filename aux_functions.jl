@@ -58,7 +58,7 @@ end
 // Evaluates electron number density n(0:J-1) from 
 // array r(0:N-1) of electron coordinates.
 """
-function get_density!(r, n, dx)
+function get_density_old_old!(r, n, dx)
   # Initialize 
   N = length(r)
   J = length(n)
@@ -297,7 +297,7 @@ function RHSC_old(u,t,p_RHSC)
 end
 
 function RHSC(u,t,p_RHSC)
-  N, J, L, dx, order, n, S, du, get_density!, get_current! = p_RHSC
+  N, J, L, dx, order, n, S, du, get_density!, get_current!, Interpolate = p_RHSC
     p = L, N, J, κ, dx, order
     #get_density!(u, n, p)
     get_current!(u, S, p)
@@ -418,11 +418,24 @@ function W(order::Int,y::Float64)
   end
 end
 
-function Interpolate(order, vector, x, J, L)
+"""
+This are interpolation functions for getting the Electric field correct.
+According the SHARP the second is better. Since it keeps momentum conservation.
+"""
+function Interpolate_1(order, vector, x, J, L)
   j, y = get_index_and_y(x,J,L)
   vi = 0.0
     for l in (-order+1):order 
       vi += vector[mod1(j+l,J)] * W(order, -y + l)
+    end
+  return vi
+end
+
+function Interpolate_2(order, vector, x, J, L)
+  j, y = get_index_and_y(x,J,L)
+  vi = 0.0
+    for l in (-order):order 
+      vi += (vector[mod1(j+l,J)] + vector[mod1(j+l+1,J)])/ 2 * W(order, -y + 1/2 + l)
     end
   return vi
 end
