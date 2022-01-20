@@ -211,6 +211,31 @@ function get_current!(u, S, p)
   end
 end
 
+function get_current(u, S, p)
+  L, N, J, κ, dx, order = p
+  r = view(u,1:N)
+  v = view(u,N+1:2N)
+  fill!(S,0.0)
+
+  for i in 1:N
+    j, y = get_index_and_y(r[i],J,L)
+    for l in (-order):order 
+      S[mod1(j + l, J)] += W(order, -y + l) * v[i] / dx;
+    end
+  end
+  return S[:]
+end
+
+function get_mini_current(pp, S, p)
+  L, N, J, κ, dx, order = p
+  fill!(S,0.0)
+    j, y = get_index_and_y(pp.r,J,L)
+    for l in (-order):order 
+      S[mod1(j + l, J)] = W(order, -y + l) * pp.v / dx;
+    end
+  return S[:]
+end
+
 """
 Calculates the RHS of the evolution equation. 
 Returns du 
@@ -438,4 +463,31 @@ function Interpolate_2(order, vector, x, J, L)
       vi += (vector[mod1(j+l,J)] + vector[mod1(j+l+1,J)])/ 2 * W(order, -y + 1/2 + l)
     end
   return vi
+end
+
+"""
+Structure and functions to work with particles 
+This is probably much faster for the position and
+velocity are adjacent in memory.
+"""
+
+mutable struct Particles
+  r ::Float64
+  v ::Float64
+end
+
+#pars = Vector{Particles}(undef, N)
+#par1 = par(0.0,0.0)
+
+#pp = fill(par1,N)
+"""
+Makes particles out of a vector with positions first and then
+velocities
+"""
+
+function make_particles!(par_dis, pars)
+  N = length(par_dis)÷2
+  for i in 1:N
+      pars[i] = Particles(par_dis[i], par_dis[N+i])
+  end
 end
