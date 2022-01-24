@@ -141,6 +141,19 @@ function get_density!(u, n, p)
     #n .= n/n0 - 1.0 # return rho directly
 end
 
+function get_density_ro!(u, n, p)
+  L, N, J, κ, dx, order = p
+  r = view(u,1:2:2N-1)
+  fill!(n,0.0)
+  # Evaluate number density.
+  for i in 1:N
+    j, y = get_index_and_y(r[i],J,L)
+    for l in (-order):order 
+      n[mod1(j + l, J)] += W(order, -y + l) / dx;
+    end
+  end
+    #n .= n/n0 - 1.0 # return rho directly
+end
 
 """The routine below evaluates the electron current on an evenly spaced mesh given the instantaneous electron coordinates.
 
@@ -211,6 +224,20 @@ function get_current!(u, S, p)
   end
 end
 
+function get_current_ro!(u, S, p)
+  L, N, J, κ, dx, order = p
+  r = view(u,1:2:2N-1)
+  v = view(u,2:2:2N)
+  fill!(S,0.0)
+
+  for i in 1:N
+    j, y = get_index_and_y(r[i],J,L)
+    for l in (-order):order 
+      S[mod1(j + l, J)] += W(order, -y + l) * v[i] / dx;
+    end
+  end
+end
+
 function get_current(u, S, p)
   L, N, J, κ, dx, order = p
   r = view(u,1:N)
@@ -235,6 +262,7 @@ function get_mini_current(pp, S, p)
     end
   return S[:]
 end
+
 
 """
 Calculates the RHS of the evolution equation. 
@@ -491,3 +519,15 @@ function make_particles!(par_dis, pars)
       pars[i] = Particles(par_dis[i], par_dis[N+i])
   end
 end
+
+"""
+reorder particle vector so that position and velocity are contiguous
+"""
+function reorder_particles!(u,uro)
+  N = length(u)÷2
+  for i in 1:N
+    uro[2i - 1] = u[i]
+    uro[2i] = u[N+i]
+  end
+end
+
