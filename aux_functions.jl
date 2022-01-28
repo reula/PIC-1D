@@ -1,3 +1,11 @@
+using Distributed
+using DistributedArrays
+using DistributedArrays.SPMD
+#@everywhere using SharedArrays
+@everywhere using Distributed
+@everywhere using DistributedArrays
+@everywhere using DistributedArrays.SPMD
+
 """
 The following function evaluates the electric field on a uniform grid from the electric potential.
 
@@ -220,6 +228,7 @@ function get_current!(u, S, p)
     j, y = get_index_and_y(r[i],J,L)
     for l in (-order):order 
       S[mod1(j + l, J)] += W(order, -y + l) * v[i] / dx;
+      #S[mod1(j + l, J)] += W_alt(order, -y + l) * v[i] / dx;
     end
   end
 end
@@ -263,6 +272,20 @@ function get_mini_current(pp, S, p)
   return S[:]
 end
 
+function get_current_ro_par(Dpars::DArray, DS::DArray, p)
+  L, N, J, κ, dx, order = p
+  ran_pars = first(localindices(Dpars))
+  #assuming ran_pars[1] is odd
+  odd_range = first(ran_pars):2:last(ran_pars)
+  LS = DS[:L]
+  fill!(LS,0.0)
+  for i in odd_range
+    j, y = get_index_and_y(Dpars[i],J,L)
+    for l in (-order):order 
+      LS[mod1(j + l, J),:] .+= W(order, -y + l) * Dpars[i+1] / dx;
+    end
+  end
+end
 
 """
 Calculates the RHS of the evolution equation. 
@@ -452,6 +475,9 @@ function get_energy(u,p)
   return energy_K/2,  dx*energy_E /2 * n0
 end
 
+"""
+Derivatives of shape functions
+"""
 function W(order::Int,y::Float64)
   y = abs(y)
   if order == 0
@@ -471,6 +497,31 @@ function W(order::Int,y::Float64)
   end
 end
 
+"""
+Alternative definition
+"""
+function W_alt(order::Int,y::Float64)
+  y = abs(y)
+  if order == 0
+    return  (y > 1/2) ? 0 : 1
+  elseif order ==1
+    return  (y > 1) ? 0 : 1 - y 
+  elseif order == 2
+    #return (y <= 1/2) ? 3/4 - y^2  : (((y > 1/2) && (y <= 3/2)) ? (3 - 2*y)^2 / 8 : 0)
+    return (y > 3/2) ? 0 : (((y > 1/2) && (y <= 3/2)) ? (3 - 2*y)^2 / 8 : 3/4 - y^2)
+  elseif order == 3
+    #return (y <= 1) ? 2/3 - y^2 + y^3 / 2 : (((y > 1) && (y <= 2)) ? (2 - y)^3 / 6 : 0)
+    return (y > 2) ? 0 : (((y > 1) && (y <= 2)) ? (2 - y)^3 / 6 : 2/3 - y^2 + y^3 / 2)
+  elseif order == 4
+    #return (y <= 1/2) ? 115/192 - 5y^2/8 + y^4/4 : (((y > 1/2) && (y <= 3/2)) ? (55 + 20y -120y^2 + 80y^3 - 16y^4)/96 : (((y > 3/2) && (y < 5/2)) ? (5 - 2y)^4/384 : 0))
+    return (y > 5/2) ? 0 : (((y > 3/2) && (y < 5/2)) ? (5 - 2y)^4/384 : (((y > 1/2) && (y <= 3/2)) ? (55 + 20y -120y^2 + 80y^3 - 16y^4)/96 : 115/192 - 5y^2/8 + y^4/4))
+  elseif order == 5
+    #return (y <= 1) ? 11/20 - y^2/2 + y^4/4 - y^5/12 : (((y > 1) && (y <= 2)) ? 17/40 + 5y/8 - 7y^2/4 + 5y^3/4 - 3y^4/8 + y^5/24 : (((y > 2) && (y < 3)) ? (3 - y)^5/120 : 0))
+    return (y > 3) ? 0 : (((y > 2) && (y < 3)) ? (3 - y)^5/120 : (((y > 1) && (y <= 2)) ? 17/40 + 5y/8 - 7y^2/4 + 5y^3/4 - 3y^4/8 + y^5/24 : 11/20 - y^2/2 + y^4/4 - y^5/12))
+  else
+    error("order = $order not yet implemented ")
+  end
+end
 """
 This are interpolation functions for getting the Electric field correct.
 According the SHARP the second is better. Since it keeps momentum conservation.
