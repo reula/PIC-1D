@@ -40,7 +40,7 @@ reorder_particles!(par_dis,pars)
 
 Dpars = distribute(pars);
 
-if false
+if nprocs() > 1 
     @benchmark begin
         Sf = zeros(J)
     spmd(get_current_ro_par, Dpars, DS, p)
@@ -52,7 +52,7 @@ if false
     end
 end
 
-if true
+if nprocs() == 1
     @benchmark begin
     S = zeros(J)
     get_current_ro!(pars, S, p)
