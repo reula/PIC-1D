@@ -14,6 +14,7 @@ const dx = L/J
 
 include("aux_functions.jl")
 
+println("threads = $(nthreads())")
 
 function get_current_threads_soa(r, v, p)
   L, N, J, κ, dx, order = p
@@ -117,5 +118,5 @@ p = (L, N, J, κ, dx, order)
 rv = load_aos()
 @benchmark get_current_threads_aos(rv, p)
 
-(r,v) = load_soa()
-@benchmark get_current_threads_soa(r, v, p)
+#(r,v) = load_soa()
+#@benchmark get_current_threads_soa(r, v, p)
