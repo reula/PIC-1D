@@ -14,7 +14,7 @@ using BenchmarkTools
 #rmprocs(2:37)
 d_closeall()
 
-N_workers = 1
+N_workers = 32
 addprocs(N_workers)
 
 println(workers())
