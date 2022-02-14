@@ -403,8 +403,14 @@ function RHSC_old(u,t,p_RHSC)
 end
 
 function RHSC(u,t,p_RHSC)
-  N, J, L, dx, order, n, S, du, get_density!, get_current!, Interpolate = p_RHSC
+  if nthreads() == 1
+    N, J, L, dx, order, n, S, du, get_density!, get_current!, Interpolate = p_RHSC
     p = L, N, J, κ, dx, order
+  else
+    N, J, L, dx, order, n, S, du, get_density!, get_current!, Interpolate, TS = p_RHSC
+    p = L, N, J, κ, dx, order, TS
+  end
+  
     #get_density!(u, n, p)
     get_current!(u, S, p)
     E = view(u,2N+1:2N+J)
