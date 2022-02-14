@@ -45,6 +45,34 @@ function get_current_threads_soa(r, v, p)
   S
 end
 
+function get_current_threads(u, p)
+  L, N, J, κ, dx, order = p
+
+  TS = zeros(J, nthreads())
+  @threads for i in 1:N
+    @inbounds j, y = get_index_and_y(u[i], J, L)
+    for l in (-order):-j
+      @inbounds TS[J + j + l, threadid()] += W(order, -y + l) * u[N+i] / dx;
+    end
+    for l in max(-order,-j+1):min(order,J-j)
+      @inbounds TS[j + l, threadid()] += W(order, -y + l) * u[N+i] / dx;
+    end
+    for l in J-j+1:order
+      @inbounds TS[j - J + l, threadid()] += W(order, -y + l) * u[N+i] / dx;
+    end
+    # for l in (-order):order
+    #   @inbounds TS[mod1(j + l, J), threadid()] += W(order, -y + l) * v[i] / dx;
+    # end
+  end
+
+  S = zeros(J)
+  @threads for i in 1:J
+    for t in 1:nthreads()
+      @inbounds S[i] += TS[i, t]
+    end
+  end
+  S
+end
 
 function get_current_threads_aos(rv, p)
   L, N, J, κ, dx, order = p
@@ -118,5 +146,9 @@ p = (L, N, J, κ, dx, order)
 rv = load_aos()
 @benchmark get_current_threads_aos(rv, p)
 
-#(r,v) = load_soa()
+(r,v) = load_soa()
 #@benchmark get_current_threads_soa(r, v, p)
+
+u = [r;v]
+@benchmark get_current_threads(u, p)
+
