@@ -143,12 +143,14 @@ end
 x = [dx*(i-1) for i in 1:J]
 p = (L, N, J, κ, dx, order)
 
-rv = load_aos()
-@benchmark get_current_threads_aos(rv, p)
+#rv = load_aos()
+#@benchmark get_current_threads_aos(rv, p)
 
 (r,v) = load_soa()
 #@benchmark get_current_threads_soa(r, v, p)
 
 u = [r;v]
-@benchmark get_current_threads(u, p)
+#@benchmark get_current_threads(u, p)
+
+
 
