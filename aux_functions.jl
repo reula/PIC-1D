@@ -272,6 +272,36 @@ function get_mini_current(pp, S, p)
   return S[:]
 end
 
+
+function get_current_threads!(u, S, p)
+  L, N, J, κ, dx, order, TS = p
+
+  #TS = zeros(J, nthreads())
+  @threads for i in 1:N
+    @inbounds j, y = get_index_and_y(u[i], J, L)
+    for l in (-order):-j
+      @inbounds TS[J + j + l, threadid()] += W(order, -y + l) * u[N+i] / dx;
+    end
+    for l in max(-order,-j+1):min(order,J-j)
+      @inbounds TS[j + l, threadid()] += W(order, -y + l) * u[N+i] / dx;
+    end
+    for l in J-j+1:order
+      @inbounds TS[j - J + l, threadid()] += W(order, -y + l) * u[N+i] / dx;
+    end
+    # for l in (-order):order
+    #   @inbounds TS[mod1(j + l, J), threadid()] += W(order, -y + l) * v[i] / dx;
+    # end
+  end
+
+  #S = zeros(J)
+  @threads for i in 1:J
+    for t in 1:nthreads()
+      @inbounds S[i] += TS[i, t]
+    end
+  end
+  S
+end
+
 function get_current_ro_par(Dpars::DArray, DS::DArray, p)
   L, N, J, κ, dx, order = p
   ran_pars = first(localindices(Dpars))
