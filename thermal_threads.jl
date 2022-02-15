@@ -31,6 +31,8 @@ p = (L, N, J, κ, dx, order)
 
 animation = false
 
+printl("t_f = $(t_f), M = $M, dt = $(dt), exp_Theta = $(exp_Theta)")
+
 run_name = run_name * "t$(convert(Int,t_f))_L$(L)_N2_5_J$(J)_M$(M)_o$(order)_T$(exp_Theta)"
 
 E = zeros(J)
