@@ -410,7 +410,7 @@ function RHSC(u,t,p_RHSC)
     N, J, L, dx, order, n, S, du, get_density!, get_current!, Interpolate, TS = p_RHSC
     p = L, N, J, κ, dx, order, TS
   end
-  
+
     #get_density!(u, n, p)
     get_current!(u, S, p)
     E = view(u,2N+1:2N+J)
@@ -467,12 +467,13 @@ function RK4_Step!(f,y0,t0,h,p)
 end
 
 function get_index_and_distance(s,dx,L)
-    if s < 0
-        s = s + L
-    end
-    if s > L
-        s = s - L 
-    end
+    #if s < 0
+    #    s = s + L
+    #end
+    #if s > L
+    #    s = s - L 
+    #end
+    s = mod1(s,L)
     j = floor(Int64, s ÷ dx) + 1 #find the grid space where it is.
     if j > J || j < 1
       error("j = $j")
