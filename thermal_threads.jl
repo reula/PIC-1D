@@ -8,7 +8,7 @@ using Base.Threads
 include("aux_functions.jl")
 
 run_name = "long_"
-order = 1
+order = 3
 const L = 5
 #N = 80000
 const N = 20000
