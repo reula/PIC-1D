@@ -8,7 +8,7 @@ using Base.Threads
 include("aux_functions.jl")
 
 run_name = "long_"
-order = 1
+order = 3
 const L = 5
 #N = 80000
 const N = 20000
@@ -16,12 +16,12 @@ const J = 50
 exp_Theta = 1
 exp_t = 5
 θ = 10.0^(-exp_Theta)
-t = 0.0
+t_i = 0.0
 t_f = 10.0^(exp_t)
 M = 1_000_001
 M_g = 1000 + 1 #number of outputs, starting from the initial data
 dt = t_f / (M-1)
-t_i = 0.0
+t = t_i
 #M = convert(Int64,t_f/dt)
 const κ = 2π/L # for Fourier Transform
 dx = L/J
@@ -30,7 +30,7 @@ p = (L, N, J, κ, dx, order)
 
 animation = false
 
-println("t_f = $(t_f), M = $M, dt = $(dt), exp_Theta = $(exp_Theta)")
+println("t_f = $(t_f), M = $(M), dt = $(dt), exp_Theta = $(exp_Theta)")
 
 run_name = run_name * "t$(convert(Int,t_f))_L$(L)_N2_5_J$(J)_M$(M)_o$(order)_T$(exp_Theta)"
 
