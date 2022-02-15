@@ -23,7 +23,6 @@ M_g = 1000 + 1 #number of outputs, starting from the initial data
 dt = t_f / (M-1)
 t_i = 0.0
 #M = convert(Int64,t_f/dt)
-#M=1
 const κ = 2π/L # for Fourier Transform
 dx = L/J
 x = [dx*(i-1) for i in 1:J] ;
@@ -100,7 +99,8 @@ global t = 0.0
 
     for k in 2:(M+1)
         RK4_Step!(RHSC,u,t,dt,p_RHSC)
-        global u = [make_periodic!(u[1:N],L); u[N+1:end]]
+        global u = [mod1.(u[1:N],L); u[N+1:end]]
+        #global u = [make_periodic!(u[1:N],L); u[N+1:end]]
         #filter_constant!(u[2N+1:end])
         global t = t + dt
         if (k-1) % (M÷(M_g-1)) == 0

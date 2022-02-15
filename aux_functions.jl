@@ -444,7 +444,7 @@ function Coordinate_test(r,L)
     end
 end
 
-function make_periodic!(r,L)
+function make_periodic_old!(r,L)
     N = length(r)
     for i in 1:N
       if (r[i] < 0.) 
@@ -455,6 +455,10 @@ function make_periodic!(r,L)
       end
     end
     return r[:]
+end
+
+function make_periodic!(r,L)
+  return mod1.(r,L)
 end
 
 
