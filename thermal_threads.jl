@@ -93,7 +93,7 @@ end
     
     
 global t = 0.0
-global j = 1
+#global j = 1
     
 
     for k in 2:(M+1)
@@ -102,7 +102,7 @@ global j = 1
         #filter_constant!(u[2N+1:end])
         global t = t + dt
         if (k-1) % (M÷(M_g-1)) == 0
-          global j = j+1
+          j = (k-1)÷(M÷(M_g-1))+1
           #scatter(plt, u[1:N], u[N+1:2*N])
           Energy_K[j], Energy_E[j] = get_energy(u,(L, N, J))
           E_T[j] = sum(u[2N+1:end])
@@ -112,7 +112,7 @@ global j = 1
           D_T[j] = sum(n)/n0/J - 1
           S_T[j] = sum(S)/n0/J
           T[j] = var(u[N+1:2N])
-          println("j = $j , t = $t, k = $k")
+          println("j = $j , t = $t, k = $k, threads = $(nthreads())")
           if animation
           par[j,:] = u[1:2N]
           end
