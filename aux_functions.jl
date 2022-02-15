@@ -141,9 +141,9 @@ function get_density!(u, n, p)
   fill!(n,0.0)
   # Evaluate number density.
   for i in 1:N
-    j, y = get_index_and_y(r[i],J,L)
+    @inbounds j, y = get_index_and_y(r[i],J,L)
     for l in (-order):order 
-      n[mod1(j + l, J)] += W(order, -y + l) / dx;
+      @inbounds n[mod1(j + l, J)] += W(order, -y + l) / dx;
     end
   end
     #n .= n/n0 - 1.0 # return rho directly
@@ -225,9 +225,9 @@ function get_current!(u, S, p)
   fill!(S,0.0)
 
   for i in 1:N
-    j, y = get_index_and_y(r[i],J,L)
+    @inbounds j, y = get_index_and_y(r[i],J,L)
     for l in (-order):order 
-      S[mod1(j + l, J)] += W(order, -y + l) * v[i] / dx;
+      @inbounds S[mod1(j + l, J)] += W(order, -y + l) * v[i] / dx;
       #S[mod1(j + l, J)] += W_alt(order, -y + l) * v[i] / dx;
     end
   end
@@ -240,9 +240,9 @@ function get_current_ro!(u, S, p)
   fill!(S,0.0)
 
   for i in 1:N
-    j, y = get_index_and_y(r[i],J,L)
+    @inbounds j, y = get_index_and_y(r[i],J,L)
     for l in (-order):order 
-      S[mod1(j + l, J)] += W(order, -y + l) * v[i] / dx;
+      @inbounds S[mod1(j + l, J)] += W(order, -y + l) * v[i] / dx;
     end
   end
 end
@@ -256,7 +256,7 @@ function get_current(u, S, p)
   for i in 1:N
     j, y = get_index_and_y(r[i],J,L)
     for l in (-order):order 
-      S[mod1(j + l, J)] += W(order, -y + l) * v[i] / dx;
+      @inbounds  S[mod1(j + l, J)] += W(order, -y + l) * v[i] / dx;
     end
   end
   return S[:]
@@ -423,12 +423,12 @@ function RHSC(u,t,p_RHSC)
         #  Efield += E[mod1(j+l,J)] * W(order, -y + l)
         #end
 
-        du[i] = u[N+i]
-        du[N+i] = - Interpolate(order, E, u[i], J, L)
+        @inbounds du[i] = u[N+i]
+        @inbounds du[N+i] = - Interpolate(order, E, u[i], J, L)
     end
 
       for j in 1:J
-        du[2N+j] =  S[j]/n0 # particles have negative sign!
+        @inbounds du[2N+j] =  S[j]/n0 # particles have negative sign!
       end
 
     return du[:]
