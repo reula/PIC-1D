@@ -13,7 +13,7 @@ const L = 5
 #N = 80000
 const N = 20000
 const J = 50
-exp_Theta = 1
+exp_Theta = 2
 exp_t = 5
 θ = 10.0^(-exp_Theta)
 t_i = 0.0
@@ -40,7 +40,14 @@ n = zeros(J) #charge density
 S = zeros(J) #carge current
 du = zeros(2*N+J); # contains r, v and E
 
-par_dis = load("Initial_Distributions/par_dis_L5_N2_5_theta001.jld2", "par_dis");
+par_dis = load("Initial_Distributions/par_dis_L5_N2_5_theta01.jld2", "par_dis");
+#par_dis = load("Initial_Distributions/par_dis_L5_N2_5_theta001.jld2", "par_dis");
+#par_dis = load("Initial_Distributions/par_dis_L5_N2_5_theta0001.jld2", "par_dis");
+#par_dis = load("Initial_Distributions/par_dis_L5_N2_5_theta00001.jld2", "par_dis");
+#par_dis = load("Initial_Distributions/par_dis_L5_N8_5_theta01.jld2", "par_dis");
+#par_dis = load("Initial_Distributions/par_dis_L5_N8_5_theta001.jld2", "par_dis");
+#par_dis = load("Initial_Distributions/par_dis_L5_N8_5_theta0001.jld2", "par_dis");
+#par_dis = load("Initial_Distributions/par_dis_L5_N8_5_theta00001.jld2", "par_dis");
 
 @assert length(par_dis) ÷ 2 == N
 
