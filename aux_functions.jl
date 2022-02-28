@@ -254,7 +254,7 @@ function get_current(u, S, p)
   fill!(S,0.0)
 
   for i in 1:N
-    j, y = get_index_and_y(r[i],J,L)
+    @inbounds j, y = get_index_and_y(r[i],J,L)
     for l in (-order):order 
       @inbounds  S[mod1(j + l, J)] += W(order, -y + l) * v[i] / dx;
     end
@@ -275,25 +275,26 @@ end
 
 function get_current_threads!(u, S, p)
   L, N, J, κ, dx, order, TS = p
-
-  #TS = zeros(J, nthreads())
+  j = fill(Int64(1),nthreads()) 
+  y = fill(Float64(1.0),nthreads())
+  TS .= zeros(Float64)
   @threads for i in 1:N
-    @inbounds j, y = get_index_and_y(u[i], J, L)
-    for l in (-order):-j
-      @inbounds TS[J + j + l, threadid()] += W(order, -y + l) * u[N+i] / dx;
+    @inbounds j[threadid()], y[threadid()] = get_index_and_y(u[i], J, L)
+    for l in (-order):-j[threadid()]
+      @inbounds TS[J + j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * u[N+i] / dx;
     end
-    for l in max(-order,-j+1):min(order,J-j)
-      @inbounds TS[j + l, threadid()] += W(order, -y + l) * u[N+i] / dx;
+    for l in max(-order,-j[threadid()]+1):min(order,J-j[threadid()])
+      @inbounds TS[j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * u[N+i] / dx;
     end
-    for l in J-j+1:order
-      @inbounds TS[j - J + l, threadid()] += W(order, -y + l) * u[N+i] / dx;
+    for l in J-j[threadid()]+1:order
+      @inbounds TS[j[threadid()] - J + l, threadid()] += W(order, -y[threadid()] + l) * u[N+i] / dx;
     end
     # for l in (-order):order
     #   @inbounds TS[mod1(j + l, J), threadid()] += W(order, -y + l) * v[i] / dx;
     # end
   end
 
-  #S = zeros(J)
+  S .= zeros(Float64)
   @threads for i in 1:J
     for t in 1:nthreads()
       @inbounds S[i] += TS[i, t]
@@ -406,16 +407,19 @@ function RHSC(u,t,p_RHSC)
   if nthreads() == 1
     N, J, L, dx, order, n, S, du, get_density!, get_current!, Interpolate = p_RHSC
     p = L, N, J, κ, dx, order
+    get_current!(u, S, p)
   else
     N, J, L, dx, order, n, S, du, get_density!, get_current!, Interpolate, TS = p_RHSC
     p = L, N, J, κ, dx, order, TS
+    get_current_threads!(u, S, p)
   end
 
     #get_density!(u, n, p)
-    get_current!(u, S, p)
+    
     E = view(u,2N+1:2N+J)
     n0 = N/L
     
+    #@threads for i in 1:N
     for i in 1:N
         #j, y = get_index_and_y(u[i],J,L)
         #Efield = 0.0
@@ -427,10 +431,10 @@ function RHSC(u,t,p_RHSC)
         @inbounds du[N+i] = - Interpolate(order, E, u[i], J, L)
     end
 
-      for j in 1:J
+    #@threads for j in 1:J
+    for j in 1:J
         @inbounds du[2N+j] =  S[j]/n0 # particles have negative sign!
-      end
-
+    end
     return du[:]
 end
 
