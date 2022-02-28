@@ -74,6 +74,37 @@ function get_current_threads(u, p)
   S
 end
 
+function get_current_threads_v2(u, p)
+  L, N, J, κ, dx, order = p
+
+  TS = zeros(J, nthreads())
+  j = fill(Int64(1),nthreads())
+  y = zeros(nthreads())
+  @threads for i in 1:N
+    @inbounds j[threadid()], y[threadid()] = get_index_and_y(u[i], J, L)
+    for l in (-order):-j[threadid()]
+      @inbounds TS[J + j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * u[N+i] / dx;
+    end
+    for l in max(-order,-j[threadid()]+1):min(order,J-j[threadid()])
+      @inbounds TS[j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * u[N+i] / dx;
+    end
+    for l in J-j[threadid()]+1:order
+      @inbounds TS[j[threadid()] - J + l, threadid()] += W(order, -y[threadid()] + l) * u[N+i] / dx;
+    end
+    # for l in (-order):order
+    #   @inbounds TS[mod1(j + l, J), threadid()] += W(order, -y + l) * v[i] / dx;
+    # end
+  end
+
+  S = zeros(J)
+  @threads for i in 1:J
+    for t in 1:nthreads()
+      @inbounds S[i] += TS[i, t]
+    end
+  end
+  S
+end
+
 function get_current_threads_aos(rv, p)
   L, N, J, κ, dx, order = p
 
@@ -151,6 +182,16 @@ p = (L, N, J, κ, dx, order)
 
 u = [r;v]
 #@benchmark get_current_threads(u, p)
+
+if nthreads() == 1
+  S = zeros(J)
+  get_current!(u,S,p)
+else
+  S = zeros(J)
+  S = get_current_threads_v2(u,p)
+end
+
+save("current_th$(nthreads()).jld2", Dict("s" => S))
 
 
 

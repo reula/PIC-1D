@@ -1,25 +1,25 @@
 using Statistics
 using FFTW
-FFTW.set_provider!("mkl")
-import Pkg; Pkg.add("FileIO")
+#FFTW.set_provider!("mkl")
+#import Pkg; Pkg.add("FileIO")
 using FileIO
 using Base.Threads
 
 include("aux_functions.jl")
 
-run_name = "long_"
+run_name = "try_"
 order = 5
 const L = 5
 #N = 80000
 const N = 20000
 const J = 50
 exp_Theta = 2
-exp_t = 5
+exp_t = 2
 θ = 10.0^(-exp_Theta)
 t_i = 0.0
 t_f = 10.0^(exp_t)
-M = 1_000_001
-M_g = 1000 + 1 #number of outputs, starting from the initial data
+M = 1001
+M_g = 100 + 1 #number of outputs, starting from the initial data
 dt = t_f / (M-1)
 t = t_i
 #M = convert(Int64,t_f/dt)
@@ -29,10 +29,11 @@ x = [dx*(i-1) for i in 1:J] ;
 p = (L, N, J, κ, dx, order)
 
 animation = false
+display = true
 
 println("t_f = $(t_f), M = $(M), dt = $(dt), exp_Theta = $(exp_Theta)")
 
-run_name = run_name * "t$(convert(Int,t_f))_L$(L)_N2_5_J$(J)_M$(M)_o$(order)_T$(exp_Theta)"
+run_name = run_name * "_L$(L)_N2_5_J$(J)_M$(M)_o$(order)_T$(exp_Theta)"
 
 E = zeros(J)
 ϕ = zeros(J)
@@ -104,27 +105,29 @@ global t = 0.0
 #global j = 1
     
 
-    for k in 2:(M+1)
+    for k in 2:M
         RK4_Step!(RHSC,u,t,dt,p_RHSC)
         global u = [mod1.(u[1:N],L); u[N+1:end]]
         #global u = [make_periodic!(u[1:N],L); u[N+1:end]]
         #filter_constant!(u[2N+1:end])
         global t = t + dt
-        if (k-1) % (M÷(M_g-1)) == 0
-          j = (k-1)÷(M÷(M_g-1))+1
-          #scatter(plt, u[1:N], u[N+1:2*N])
-          Energy_K[j], Energy_E[j] = get_energy(u,(L, N, J))
-          E_T[j] = sum(u[2N+1:end])
-          v_T[j] = sum(u[N+1:2N])
-          get_density!(u, n, p)
-          get_current!(u, S, p)
-          D_T[j] = sum(n)/n0/J - 1
-          S_T[j] = sum(S)/n0/J
-          T[j] = var(u[N+1:2N])
-          println("j = $j , t = $t, k = $k, threads = $(nthreads())")
-          if animation
-          par[j,:] = u[1:2N]
-          end
+        if display
+            if (k-1) % (M÷(M_g-1)) == 0
+                j = (k-1)÷(M÷(M_g-1))+1
+                #scatter(plt, u[1:N], u[N+1:2*N])
+                Energy_K[j], Energy_E[j] = get_energy(u,(L, N, J))
+                E_T[j] = sum(u[2N+1:end])
+                v_T[j] = sum(u[N+1:2N])
+                get_density!(u, n, p)
+                get_current!(u, S, p)
+                D_T[j] = sum(n)/n0/J - 1
+                S_T[j] = sum(S)/n0/J
+                T[j] = var(u[N+1:2N])
+                println("j = $j , t = $t, k = $k, threads = $(nthreads()), E_K = $(Energy_K[j])")
+                if animation
+                    par[j,:] = u[1:2N]
+                end
+            end
         end
     end
 
@@ -132,7 +135,7 @@ n_F = zeros(J)
 S_F = zeros(J)
 get_density!(u, n_F, p)
 get_current!(u, S_F, p)
-save(run_name * "results.jld2", Dict("p" => p, "Energy_E" => Energy_E, "Energy_K" => Energy_K, "E_f" => u[2N+1:end], "n_F" => n_F, "S_F" => S_F, "E_T"=> E_T, "v_T" => v_T, "S_T" => S_T, "D_T" => D_T, "T" => T))
+save(run_name * "th$(nthreads())_results.jld2", Dict("p" => p, "Energy_E" => Energy_E, "Energy_K" => Energy_K, "E_f" => u[2N+1:end], "n_F" => n_F, "S_F" => S_F, "E_T"=> E_T, "v_T" => v_T, "S_T" => S_T, "D_T" => D_T, "T" => T, "u" => u))
 
 #plot(layout=(2,2))
 #plot!(subplot=1,E_T,title="Total Electric Field")
