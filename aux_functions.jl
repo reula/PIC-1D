@@ -588,6 +588,34 @@ function Interpolate_2(order, vector, x, J, L)
     end
   return vi
 end
+"""
+Terminado, pero sin probar.
+"""
+function Interpolate_per(order, vector, x, J, L)
+  j, y = get_index_and_y(x,J,L)
+  vi = 0.0
+    for l in (-order):-j 
+      vi += vector[J+j+l] * W(order, -y + 1/2 + l)
+    end
+    for l in  max(-order,-j+1):min(order,J-j)
+      vi += vector[j+l] * W(order, -y + 1/2 + l)
+    end
+    for l in J-j+1:order
+      vi += vector[j+l] * W(order, -y + 1/2 + l)
+    end
+    # now we increase j by 1
+    j += 1
+    for l in (-order):-j 
+      vi += vector[J+j+l] * W(order, -y + 1/2 + l)
+    end
+    for l in  max(-order,-j+1):min(order,J-j)
+      vi += vector[j+l] * W(order, -y + 1/2 + l)
+    end
+    for l in J-j+1:order
+      vi += vector[j+l] * W(order, -y + 1/2 + l)
+    end
+  return vi / 2
+end
 
 """
 Structure and functions to work with particles 

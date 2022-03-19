@@ -247,8 +247,10 @@ println("Final Energy = $(get_energy(u,(L, N, J)))")
 get_current!(u, S, p)
 println("Total_current = $(sum(S)/J)")
 
+if make_plots
 plot(x,u[2N+1:end]-E_F, label = "difference", title="Electric Field")
 #png(run_name * "electric_diff")
+if make_plots
 
 if phase_space_show
 Plots.scatter(u[1:N],u[N+1:2N]
