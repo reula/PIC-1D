@@ -149,6 +149,15 @@ function get_density!(u, n, p)
     #n .= n/n0 - 1.0 # return rho directly
 end
 
+function get_total_charge(ρ,par)
+  J, dx = par
+  Q = 0.0
+  for i in 1:J
+      Q += ρ[i]
+  end
+  return Q * dx
+end
+
 function get_density_ro!(u, n, p)
   L, N, J, κ, dx, order = p
   r = view(u,1:2:2N-1)
@@ -233,6 +242,22 @@ function get_current!(u, S, p)
   end
 end
 
+function get_current_rel!(u, S, p)
+  L, N, J, κ, dx, order = p
+  r = view(u,1:N)
+  p = view(u,N+1:2N) # in the relativistic version we compute p instead of v
+  fill!(S,0.0)
+
+  for i in 1:N
+    @inbounds j, y = get_index_and_y(r[i],J,L)
+    @inbounds v = p[i]/sqrt(1+p[i]^2)
+    for l in (-order):order 
+      @inbounds S[mod1(j + l, J)] += W(order, -y + l) * v / dx;
+      #S[mod1(j + l, J)] += W_alt(order, -y + l) * v / dx;
+    end
+  end
+end
+
 function get_current_ro!(u, S, p)
   L, N, J, κ, dx, order = p
   r = view(u,1:2:2N-1)
@@ -280,6 +305,38 @@ function get_current_threads!(u, S, p)
   TS .= zeros(Float64)
   @threads for i in 1:N
     @inbounds j[threadid()], y[threadid()] = get_index_and_y(u[i], J, L)
+    @inbounds p = u[N+i] # in the relativistic version we carry p, so we need to transform to velocities
+    @inbounds p = p/sqrt(p) / dx # we divide also by dx so as to save computations
+    for l in (-order):-j[threadid()]
+      @inbounds TS[J + j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * p;
+    end
+    for l in max(-order,-j[threadid()]+1):min(order,J-j[threadid()])
+      @inbounds TS[j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * p;
+    end
+    for l in J-j[threadid()]+1:order
+      @inbounds TS[j[threadid()] - J + l, threadid()] += W(order, -y[threadid()] + l) * p;
+    end
+    # for l in (-order):order
+    #   @inbounds TS[mod1(j + l, J), threadid()] += W(order, -y + l) * v[i] / dx;
+    # end
+  end
+
+  S .= zeros(Float64)
+  @threads for i in 1:J
+    for t in 1:nthreads()
+      @inbounds S[i] += TS[i, t]
+    end
+  end
+  S
+end
+
+function get_current_rel_threads!(u, S, p)
+  L, N, J, κ, dx, order, TS = p
+  j = fill(Int64(1),nthreads()) 
+  y = fill(Float64(1.0),nthreads())
+  TS .= zeros(Float64)
+  @threads for i in 1:N
+    @inbounds j[threadid()], y[threadid()] = get_index_and_y(u[i], J, L)
     for l in (-order):-j[threadid()]
       @inbounds TS[J + j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * u[N+i] / dx;
     end
@@ -302,6 +359,7 @@ function get_current_threads!(u, S, p)
   end
   S
 end
+
 
 function get_current_ro_par(Dpars::DArray, DS::DArray, p)
   L, N, J, κ, dx, order = p
@@ -341,7 +399,7 @@ function RHS(u,t,p_RHC)
             Efield = E[j] * (1. - y) + E[j+1] * y;
         end
 
-        du[i] = u[N+i]
+        du[i] = u[N+i]/sqrt(1 + u[N+i]^2) # relativistic factor
         du[N+i] = - Efield
     end
     return du[:]
@@ -427,7 +485,7 @@ function RHSC(u,t,p_RHSC)
         #  Efield += E[mod1(j+l,J)] * W(order, -y + l)
         #end
 
-        @inbounds du[i] = u[N+i]
+        @inbounds du[i] = u[N+i]/sqrt(1 + u[N+i]^2) # relativistic factor
         @inbounds du[N+i] = - Interpolate(order, E, u[i], J, L)
     end
 
@@ -438,6 +496,38 @@ function RHSC(u,t,p_RHSC)
     return du[:]
 end
 
+function RHSC_rel(u,t,p_RHSC)
+  if nthreads() == 1
+    N, J, L, dx, order, n, S, du, get_density!, get_current_rel!, Interpolate = p_RHSC
+    p = L, N, J, κ, dx, order
+    get_current_rel!(u, S, p)
+  else
+    N, J, L, dx, order, n, S, du, get_density!, get_current_rel_threads!, Interpolate, TS = p_RHSC
+    p = L, N, J, κ, dx, order, TS
+    get_current_rel_threads!(u, S, p)
+  end
+
+    E = view(u,2N+1:2N+J)
+    n0 = N/L
+    
+    #@threads for i in 1:N
+    for i in 1:N
+        #j, y = get_index_and_y(u[i],J,L)
+        #Efield = 0.0
+        #for l in (-order):order 
+        #  Efield += E[mod1(j+l,J)] * W(order, -y + l)
+        #end
+
+        @inbounds du[i] = u[N+i]/sqrt(1 + u[N+i]^2) # relativistic factor (u has the momentum)
+        @inbounds du[N+i] = - Interpolate(order, E, u[i], J, L)
+    end
+
+    #@threads for j in 1:J
+    for j in 1:J
+        @inbounds du[2N+j] =  S[j]/n0 # particles have negative sign!
+    end
+    return du[:]
+end
 
 function Coordinate_test(r,L)
     if minimum(r) < 0.0 
@@ -518,6 +608,22 @@ function get_energy(u,p)
   end
   
   return energy_K/2,  dx*energy_E /2 * n0
+end
+
+function get_energy_rel(u,p)
+  L, N, J = p
+  dx = L/J
+  n0 = N/L
+  energy_K = 0.0
+  energy_E = 0.0
+  for i in 1:N
+    energy_K = energy_K + (sqrt(1+u[N+i]^2) - 1)
+  end
+  for j in 1:J
+    energy_E = energy_E + u[2N+j]^2
+  end
+  
+  return energy_K,  dx*energy_E /2 * n0
 end
 
 """
