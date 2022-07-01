@@ -236,10 +236,11 @@ function get_current!(u, S, p)
   for i in 1:N
     @inbounds j, y = get_index_and_y(r[i],J,L)
     for l in (-order):order 
-      @inbounds S[mod1(j + l, J)] += W(order, -y + l) * v[i] / dx;
-      #S[mod1(j + l, J)] += W_alt(order, -y + l) * v[i] / dx;
+      @inbounds S[mod1(j + l, J)] += W(order, -y + l) * v[i]
+      #S[mod1(j + l, J)] += W_alt(order, -y + l) * v[i]
     end
   end
+  S / dx
 end
 
 function get_current_rel!(u, S, p)
@@ -252,10 +253,11 @@ function get_current_rel!(u, S, p)
     @inbounds j, y = get_index_and_y(r[i],J,L)
     @inbounds v = p[i]/sqrt(1+p[i]^2)
     for l in (-order):order 
-      @inbounds S[mod1(j + l, J)] += W(order, -y + l) * v / dx;
+      @inbounds S[mod1(j + l, J)] += W(order, -y + l) * v;
       #S[mod1(j + l, J)] += W_alt(order, -y + l) * v / dx;
     end
   end
+  s / dx
 end
 
 function get_current_ro!(u, S, p)
@@ -305,16 +307,16 @@ function get_current_threads!(u, S, p)
   TS .= zeros(Float64)
   @threads for i in 1:N
     @inbounds j[threadid()], y[threadid()] = get_index_and_y(u[i], J, L)
-    @inbounds p = u[N+i] # in the relativistic version we carry p, so we need to transform to velocities
-    @inbounds p = p/sqrt(p) / dx # we divide also by dx so as to save computations
+    #@inbounds p = u[N+i] # in the relativistic version we carry p, so we need to transform to velocities
+    #@inbounds p = p/sqrt(1+p^2) / dx # we divide also by dx so as to save computations
     for l in (-order):-j[threadid()]
-      @inbounds TS[J + j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * p;
+      @inbounds TS[J + j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * u[N+i]/sqrt(1+u[N+i]^2);
     end
     for l in max(-order,-j[threadid()]+1):min(order,J-j[threadid()])
-      @inbounds TS[j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * p;
+      @inbounds TS[j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * u[N+i]/sqrt(1+u[N+i]^2);
     end
     for l in J-j[threadid()]+1:order
-      @inbounds TS[j[threadid()] - J + l, threadid()] += W(order, -y[threadid()] + l) * p;
+      @inbounds TS[j[threadid()] - J + l, threadid()] += W(order, -y[threadid()] + l) * u[N+i]/sqrt(1+u[N+i]^2);
     end
     # for l in (-order):order
     #   @inbounds TS[mod1(j + l, J), threadid()] += W(order, -y + l) * v[i] / dx;
@@ -327,7 +329,7 @@ function get_current_threads!(u, S, p)
       @inbounds S[i] += TS[i, t]
     end
   end
-  S
+  S / dx
 end
 
 function get_current_rel_threads!(u, S, p)
@@ -338,26 +340,27 @@ function get_current_rel_threads!(u, S, p)
   @threads for i in 1:N
     @inbounds j[threadid()], y[threadid()] = get_index_and_y(u[i], J, L)
     for l in (-order):-j[threadid()]
-      @inbounds TS[J + j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * u[N+i] / dx;
+      @inbounds TS[J + j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * u[N+i]/sqrt(1+u[N+i]^2)
     end
     for l in max(-order,-j[threadid()]+1):min(order,J-j[threadid()])
-      @inbounds TS[j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * u[N+i] / dx;
+      @inbounds TS[j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * u[N+i]/sqrt(1+u[N+i]^2)
     end
     for l in J-j[threadid()]+1:order
-      @inbounds TS[j[threadid()] - J + l, threadid()] += W(order, -y[threadid()] + l) * u[N+i] / dx;
+      @inbounds TS[j[threadid()] - J + l, threadid()] += W(order, -y[threadid()] + l) * u[N+i]/sqrt(1+u[N+i]^2)
     end
-    # for l in (-order):order
-    #   @inbounds TS[mod1(j + l, J), threadid()] += W(order, -y + l) * v[i] / dx;
-    # end
+    #= 
+    for l in (-order):order
+       @inbounds TS[mod1(j + l, J), threadid()] += W(order, -y + l) * u[N+i]/sqrt(1+u[N+i]^2)
+    end
+    =#
   end
-
   S .= zeros(Float64)
   @threads for i in 1:J
     for t in 1:nthreads()
       @inbounds S[i] += TS[i, t]
     end
   end
-  S
+  S / dx
 end
 
 
@@ -518,7 +521,7 @@ function RHSC_rel(u,t,p_RHSC)
         #  Efield += E[mod1(j+l,J)] * W(order, -y + l)
         #end
 
-        @inbounds du[i] = u[N+i]/sqrt(1 + u[N+i]^2) # relativistic factor (u has the momentum)
+        @inbounds du[i] = u[N+i]/sqrt(1 + u[N+i]^2) # relativistic factor (u is the momentum)
         @inbounds du[N+i] = - Interpolate(order, E, u[i], J, L)
     end
 
@@ -759,5 +762,60 @@ function reorder_particles!(u,uro)
     uro[2i - 1] = u[i]
     uro[2i] = u[N+i]
   end
+end
+
+function get_averages(v,par_grid,par_evolv, par_f)
+  (N, L, J, dx, order) = par_grid
+  (t_i, t_f, M, M_g, dt) = par_evolv
+  (θ, nm, κ) = par_f
+  Energy_K = zeros(M_g)
+  Energy_E = zeros(M_g)
+  EField_T = zeros(M_g)
+  p_T = zeros(M_g)
+  Q_T = zeros(M_g)
+  S_T = zeros(M_g)
+  #E_E = 0.0
+  #E_K = zeros(J)
+  P = zeros(J)
+  ρ = zeros(J)
+  S = zeros(J)
+
+  for j in 1:M_g
+      (Energy_K[j],Energy_E[j]) = get_energy_rel(v[:,j],(L,N,J))
+      EField_T[j] = sum(v[2N+1:end,j])*dx
+      p_T[j] = sum(v[N+1:2N])*dx
+      get_density!(v[:,j], ρ, p)
+      get_current_rel!(v[:,j], S, p)
+      Q_T[j] = get_total_charge(ρ,(J, dx))
+      S_T[j] = sum(S)/N/Q_T[j]
+  end
+  return Energy_K, Energy_E, EField_T, p_T, Q_T, S_T
+end
+
+function retrieve_data(data, par_grid, par_evolv)
+  (N, L, J, dx, order) = par_grid
+  (t_i, t_f, M, M_g, dt) = par_evolv
+  v = zeros(2N+J,M_g)
+  for j in 1:M_g
+      tiempo = @sprintf("%05d", j)
+      v[:,j] = data["u/u_$tiempo"]
+  end
+  return v
+end
+
+function retrieve_meta_data(file_name::String)
+  data = load(file_name)
+  run_name = data["run_name"]
+  par_grid = data["par_grid"]
+  par_evolv = data["par_evolv"]
+  par_f = data["p_Ini"]
+  (N, L, J, dx, order) = par_grid
+  (t_i, t_f, M, M_g, dt) = par_evolv
+  #@show (θ, nm, κ) = par_f
+  n0 = N/L
+  x = [(i-1)*dx for i in 1:J]
+  dT = dt * (M-1) / (M_g-1)
+  t_series = [(i-1)*dT for i in 1:M_g]
+  return data, run_name, par_grid, par_evolv, par_f, n0, x, t_series
 end
 
