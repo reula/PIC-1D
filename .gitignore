@@ -9,8 +9,6 @@ Initial_Distributions/.DS_Store
 .ipynb_checkpoints/ini_dat-checkpoint.ipynb
 .ipynb_checkpoints/pic_1_termal-T3-checkpoint.ipynb
 .ipynb_checkpoints/post_pro_thermal-checkpoint.ipynb
-Images/.ipynb_checkpoints/particle_shapes-checkpoint.png
-Initial_Distributions/par_dis_8_4_damped_rel.jld2
-Initial_Distributions/par_dis_8_5_damped_rel.jld2
-Results/landau_damped_rel_t40_L7.455_N8_4_J930_M1601_o5_T3.jld2
-Results/landau_damped_rel_t40_L7.455_N8_5_J930_M1601_o5_T3.jld2
+Images/
+Initial_Distributions/
+Results/
