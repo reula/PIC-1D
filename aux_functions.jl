@@ -86,8 +86,8 @@ function get_density_old_old!(r, n, dx)
   end
 end
 
-function get_density_old!(u, n, p)
-  L, N, J, κ, dx, order = p
+function get_density_old!(u, n, par_grid)
+  N, L, J, dx, order = par_grid
   r = view(u,1:N)
   fill!(n,0.0)
   # Evaluate number density.
@@ -135,8 +135,9 @@ function get_density_old!(u, n, p)
     #n .= n/n0 - 1.0 # return rho directly
 end
 
-function get_density!(u, n, p)
-  L, N, J, κ, dx, order = p
+function get_density!(u, n, par_grid)
+  N, L, J, dx, order = par_grid
+  
   r = view(u,1:N)
   fill!(n,0.0)
   # Evaluate number density.
@@ -158,8 +159,8 @@ function get_total_charge(ρ,par)
   return Q * dx
 end
 
-function get_density_ro!(u, n, p)
-  L, N, J, κ, dx, order = p
+function get_density_ro!(u, n, par_grid)
+  N, L, J, dx, order = par_grid
   r = view(u,1:2:2N-1)
   fill!(n,0.0)
   # Evaluate number density.
@@ -177,8 +178,8 @@ end
 // Evaluates electron number density S(0:J-1) from 
 // array r(0:N-1) of electron coordinates.
 """
-function get_current_old!(u, S, p)
-  L, N, J, κ, dx, order = p
+function get_current_old!(u, S, par_grid)
+  N, L, J, dx, order = par_grid
   r = view(u,1:N)
   v = view(u,N+1:2N)
   fill!(S,0.0)
@@ -227,8 +228,8 @@ function get_current_old!(u, S, p)
   end
 end
 
-function get_current!(u, S, p)
-  L, N, J, κ, dx, order = p
+function get_current!(u, S, par_grid)
+  N, L, J, dx, order = par_grid
   r = view(u,1:N)
   v = view(u,N+1:2N)
   fill!(S,0.0)
@@ -243,8 +244,8 @@ function get_current!(u, S, p)
   S / dx
 end
 
-function get_current_rel!(u, S, p)
-  L, N, J, κ, dx, order = p
+function get_current_rel!(u, S, par_grid)
+  N, L, J, dx, order = par_grid
   r = view(u,1:N)
   p = view(u,N+1:2N) # in the relativistic version we compute p instead of v
   fill!(S,0.0)
@@ -257,11 +258,11 @@ function get_current_rel!(u, S, p)
       #S[mod1(j + l, J)] += W_alt(order, -y + l) * v / dx;
     end
   end
-  s / dx
+  S / dx
 end
 
-function get_current_ro!(u, S, p)
-  L, N, J, κ, dx, order = p
+function get_current_ro!(u, S, par_grid)
+  N, L, J, dx, order = par_grid
   r = view(u,1:2:2N-1)
   v = view(u,2:2:2N)
   fill!(S,0.0)
@@ -274,8 +275,8 @@ function get_current_ro!(u, S, p)
   end
 end
 
-function get_current(u, S, p)
-  L, N, J, κ, dx, order = p
+function get_current(u, S, par_grid)
+  N, L, J, dx, order = par_grid
   r = view(u,1:N)
   v = view(u,N+1:2N)
   fill!(S,0.0)
@@ -289,8 +290,8 @@ function get_current(u, S, p)
   return S[:]
 end
 
-function get_mini_current(pp, S, p)
-  L, N, J, κ, dx, order = p
+function get_mini_current(pp, S, par_grid)
+  N, L, J, dx, order = par_grid
   fill!(S,0.0)
     j, y = get_index_and_y(pp.r,J,L)
     for l in (-order):order 
@@ -300,8 +301,8 @@ function get_mini_current(pp, S, p)
 end
 
 
-function get_current_threads!(u, S, p)
-  L, N, J, κ, dx, order, TS = p
+function get_current_threads!(u, S, par_grid)
+  N, L, J, dx, order = par_grid
   j = fill(Int64(1),nthreads()) 
   y = fill(Float64(1.0),nthreads())
   TS .= zeros(Float64)
@@ -333,7 +334,8 @@ function get_current_threads!(u, S, p)
 end
 
 function get_current_rel_threads!(u, S, p)
-  L, N, J, κ, dx, order, TS = p
+  par_grid, TS = p
+  N, L, J, dx, order = par_grid
   j = fill(Int64(1),nthreads()) 
   y = fill(Float64(1.0),nthreads())
   TS .= zeros(Float64)
@@ -364,8 +366,8 @@ function get_current_rel_threads!(u, S, p)
 end
 
 
-function get_current_ro_par(Dpars::DArray, DS::DArray, p)
-  L, N, J, κ, dx, order = p
+function get_current_ro_par(Dpars::DArray, DS::DArray, par_grid)
+  N, L, J, dx, order = par_grid
   ran_pars = first(localindices(Dpars))
   #assuming ran_pars[1] is odd
   odd_range = first(ran_pars):2:last(ran_pars)
@@ -502,12 +504,12 @@ end
 function RHSC_rel(u,t,p_RHSC)
   if nthreads() == 1
     N, J, L, dx, order, n, S, du, get_density!, get_current_rel!, Interpolate = p_RHSC
-    p = L, N, J, κ, dx, order
-    get_current_rel!(u, S, p)
+    par_grid = N, L, J, dx, order = par_grid
+    get_current_rel!(u, S, par_grid)
   else
     N, J, L, dx, order, n, S, du, get_density!, get_current_rel_threads!, Interpolate, TS = p_RHSC
-    p = L, N, J, κ, dx, order, TS
-    get_current_rel_threads!(u, S, p)
+    par_grid = (N, L, J, dx, order)
+    get_current_rel_threads!(u, S, (par_grid, TS))
   end
 
     E = view(u,2N+1:2N+J)
@@ -776,7 +778,7 @@ function get_averages(v,par_grid,par_evolv, par_f)
   S_T = zeros(M_g)
   #E_E = 0.0
   #E_K = zeros(J)
-  P = zeros(J)
+  #P = zeros(J)
   ρ = zeros(J)
   S = zeros(J)
 
@@ -784,8 +786,8 @@ function get_averages(v,par_grid,par_evolv, par_f)
       (Energy_K[j],Energy_E[j]) = get_energy_rel(v[:,j],(L,N,J))
       EField_T[j] = sum(v[2N+1:end,j])*dx
       p_T[j] = sum(v[N+1:2N])*dx
-      get_density!(v[:,j], ρ, p)
-      get_current_rel!(v[:,j], S, p)
+      get_density!(v[:,j], ρ, par_grid)
+      get_current_rel!(v[:,j], S, par_grid)
       Q_T[j] = get_total_charge(ρ,(J, dx))
       S_T[j] = sum(S)/N/Q_T[j]
   end
