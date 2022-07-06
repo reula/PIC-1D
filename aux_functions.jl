@@ -66,78 +66,9 @@ end
 // Evaluates electron number density n(0:J-1) from 
 // array r(0:N-1) of electron coordinates.
 """
-function get_density_old_old!(r, n, dx)
-  # Initialize 
-  N = length(r)
-  J = length(n)
-  fill!(n,0.0)
-  # Evaluate number density.
-  for i in 1:N
-    j, y = get_index_and_distance(r[i],dx,L)
-    if j < 1
-        error("j = $j")
-    end 
-    n[j] += (1. - y) / dx;
-    if (j == J) 
-        n[1] += y / dx
-    else 
-        n[j+1] += y / dx
-    end
-  end
-end
-
-function get_density_old!(u, n, par_grid)
-  N, L, J, dx, order = par_grid
-  r = view(u,1:N)
-  fill!(n,0.0)
-  # Evaluate number density.
-  for i in 1:N
-    j, y = get_index_and_y(r[i],J,L)
-    #if j < 1
-    #    error("j = $j")
-    #end 
-    if order == 1
-      n[j] += (1. - y) / dx;
-      if (j == J) 
-          n[1] += y / dx
-      else 
-        n[j+1] += y / dx
-      end
-    end
-    if order == 2
-      if y <= 1/2
-        n[j] += (3/4 - y^2) / dx
-        if j == 1
-          n[J] += (1-2y)^2/8 / dx
-          n[2] += (1+2y)^2/8 / dx
-        elseif j==J
-          n[1] += (1+2y)^2/8 / dx
-          n[J-1] += (1-2y)^2/8 / dx
-        else
-          n[j+1] += (1+2y)^2/8 / dx
-          n[j-1] += (1-2y)^2/8 / dx
-        end
-      elseif y <= 3/2
-        n[j] += (3 - 2y)^2/8 / dx
-        if j == J-1
-          n[J] += (3/4 - (1-y)^2) / dx
-          n[1] += (1-2y)^2/8 / dx
-        elseif j==J
-          n[1] += (3/4 - (1-y)^2) / dx
-          n[2] += (1-2y)^2/8 / dx
-        else
-          n[j+1] += (3/4 - (1-y)^2) / dx
-          n[j+2] += (1-2y)^2/8 / dx
-        end
-      end
-    end
-  end
-    #n .= n/n0 - 1.0 # return rho directly
-end
-
 function get_density!(u, n, par_grid)
   N, L, J, dx, order = par_grid
-  
+  n0 = N/L
   r = view(u,1:N)
   fill!(n,0.0)
   # Evaluate number density.
@@ -147,7 +78,7 @@ function get_density!(u, n, par_grid)
       @inbounds n[mod1(j + l, J)] += W(order, -y + l) / dx;
     end
   end
-    #n .= n/n0 - 1.0 # return rho directly
+    n[:] = n[:]/n0 # return rho directly (we need to subtract 1 in cases where we assume positive particles, but this is done elsewhere.)
 end
 
 function get_total_charge(ρ,par)
@@ -163,6 +94,7 @@ function get_density_ro!(u, n, par_grid)
   N, L, J, dx, order = par_grid
   r = view(u,1:2:2N-1)
   fill!(n,0.0)
+  n0 = N/L
   # Evaluate number density.
   for i in 1:N
     j, y = get_index_and_y(r[i],J,L)
@@ -170,7 +102,7 @@ function get_density_ro!(u, n, par_grid)
       n[mod1(j + l, J)] += W(order, -y + l) / dx;
     end
   end
-    #n .= n/n0 - 1.0 # return rho directly
+    n .= n/n0 #- 1.0 # return rho directly
 end
 
 """The routine below evaluates the electron current on an evenly spaced mesh given the instantaneous electron coordinates.
@@ -178,55 +110,6 @@ end
 // Evaluates electron number density S(0:J-1) from 
 // array r(0:N-1) of electron coordinates.
 """
-function get_current_old!(u, S, par_grid)
-  N, L, J, dx, order = par_grid
-  r = view(u,1:N)
-  v = view(u,N+1:2N)
-  fill!(S,0.0)
-  # Evaluate number density.
-  for i in 1:N
-    #j, y = get_index_and_distance(r[i],dx,L)
-    j, y = get_index_and_y(r[i],J,L)
-    #if j < 1 || j > J
-    #    error("j = $j")
-    #end 
-    if order == 1
-      S[j] += (1. - y)*v[i] / dx;
-      if (j == J) 
-        S[1] += y*v[i] / dx
-      else 
-        S[j+1] += y*v[i] / dx
-      end
-    end
-    if order == 2
-      if y <= 1/2
-        S[j] += (3/4 - y^2) *v[i] / dx
-        if j == 1
-          S[J] += (1-2y)^2/8 *v[i] / dx
-          S[2] += (1+2y)^2/8 *v[i] / dx
-        elseif j==J
-          S[1] += (1+2y)^2/8 *v[i] / dx
-          S[J-1] += (1-2y)^2/8 *v[i] / dx
-        else
-          S[j+1] += (1+2y)^2/8 *v[i] / dx
-          S[j-1] += (1-2y)^2/8 *v[i] / dx
-        end
-      elseif y <= 3/2
-        S[j] += (3 - 2y)^2/8 *v[i] / dx
-        if j == J-1
-          S[J] += (3/4 - (1-y)^2) *v[i] / dx
-          S[1] += (1-2y)^2/8 *v[i] / dx
-        elseif j==J
-          S[1] += (3/4 - (1-y)^2) *v[i] / dx
-          S[2] += (1-2y)^2/8 *v[i] / dx
-        else
-          S[j+1] += (3/4 - (1-y)^2) *v[i] / dx
-          S[j+2] += (1-2y)^2/8 *v[i] / dx
-        end
-      end
-    end
-  end
-end
 
 function get_current!(u, S, par_grid)
   N, L, J, dx, order = par_grid
@@ -249,16 +132,16 @@ function get_current_rel!(u, S, par_grid)
   r = view(u,1:N)
   p = view(u,N+1:2N) # in the relativistic version we compute p instead of v
   fill!(S,0.0)
-
+  n0 = N/L
   for i in 1:N
     @inbounds j, y = get_index_and_y(r[i],J,L)
-    @inbounds v = p[i]/sqrt(1+p[i]^2)
+    @inbounds v = p[i]/sqrt(1+p[i]^2) / dx / n0
     for l in (-order):order 
       @inbounds S[mod1(j + l, J)] += W(order, -y + l) * v;
       #S[mod1(j + l, J)] += W_alt(order, -y + l) * v / dx;
     end
   end
-  S / dx
+  return S[:] # allready normalized with n0
 end
 
 function get_current_ro!(u, S, par_grid)
@@ -266,39 +149,15 @@ function get_current_ro!(u, S, par_grid)
   r = view(u,1:2:2N-1)
   v = view(u,2:2:2N)
   fill!(S,0.0)
-
+  n0 = N/L
   for i in 1:N
     @inbounds j, y = get_index_and_y(r[i],J,L)
     for l in (-order):order 
-      @inbounds S[mod1(j + l, J)] += W(order, -y + l) * v[i] / dx;
+      @inbounds S[mod1(j + l, J)] += W(order, -y + l) * v[i] / dx/ n0;
     end
   end
 end
 
-function get_current(u, S, par_grid)
-  N, L, J, dx, order = par_grid
-  r = view(u,1:N)
-  v = view(u,N+1:2N)
-  fill!(S,0.0)
-
-  for i in 1:N
-    @inbounds j, y = get_index_and_y(r[i],J,L)
-    for l in (-order):order 
-      @inbounds  S[mod1(j + l, J)] += W(order, -y + l) * v[i] / dx;
-    end
-  end
-  return S[:]
-end
-
-function get_mini_current(pp, S, par_grid)
-  N, L, J, dx, order = par_grid
-  fill!(S,0.0)
-    j, y = get_index_and_y(pp.r,J,L)
-    for l in (-order):order 
-      S[mod1(j + l, J)] = W(order, -y + l) * pp.v / dx;
-    end
-  return S[:]
-end
 
 
 function get_current_threads!(u, S, par_grid)
@@ -306,6 +165,7 @@ function get_current_threads!(u, S, par_grid)
   j = fill(Int64(1),nthreads()) 
   y = fill(Float64(1.0),nthreads())
   TS .= zeros(Float64)
+  n0 = N/L
   @threads for i in 1:N
     @inbounds j[threadid()], y[threadid()] = get_index_and_y(u[i], J, L)
     #@inbounds p = u[N+i] # in the relativistic version we carry p, so we need to transform to velocities
@@ -327,10 +187,10 @@ function get_current_threads!(u, S, par_grid)
   S .= zeros(Float64)
   @threads for i in 1:J
     for t in 1:nthreads()
-      @inbounds S[i] += TS[i, t]
+      @inbounds S[i] += TS[i, t]/dx/n0
     end
   end
-  S / dx
+  return S[:]
 end
 
 function get_current_rel_threads!(u, S, p)
@@ -339,6 +199,7 @@ function get_current_rel_threads!(u, S, p)
   j = fill(Int64(1),nthreads()) 
   y = fill(Float64(1.0),nthreads())
   TS .= zeros(Float64)
+  n0 = N/L
   @threads for i in 1:N
     @inbounds j[threadid()], y[threadid()] = get_index_and_y(u[i], J, L)
     for l in (-order):-j[threadid()]
@@ -359,27 +220,13 @@ function get_current_rel_threads!(u, S, p)
   S .= zeros(Float64)
   @threads for i in 1:J
     for t in 1:nthreads()
-      @inbounds S[i] += TS[i, t]
+      @inbounds S[i] += TS[i, t]/dx/n0
     end
   end
-  S / dx
+  S[:]
 end
 
 
-function get_current_ro_par(Dpars::DArray, DS::DArray, par_grid)
-  N, L, J, dx, order = par_grid
-  ran_pars = first(localindices(Dpars))
-  #assuming ran_pars[1] is odd
-  odd_range = first(ran_pars):2:last(ran_pars)
-  LS = DS[:L]
-  fill!(LS,0.0)
-  for i in odd_range
-    j, y = get_index_and_y(Dpars[i],J,L)
-    for l in (-order):order 
-      LS[mod1(j + l, J),:] .+= W(order, -y + l) * Dpars[i+1] / dx;
-    end
-  end
-end
 
 """
 Calculates the RHS of the evolution equation. 
@@ -387,100 +234,19 @@ Returns du
 uses several functions which are passed as parameters
 p = N, J, L, dx, Density!, Electric!, Poisson1D!
 """
-function RHS(u,t,p_RHC)
-    N, J, L, dx, n, E, ϕ, du, Density!, Electric!, Poisson1D! = p_RHC
-    p = L, N, J, κ, dx
-    get_density!(u[1:N], n, p)
-    n0 = N/L
-    get_ϕ!(ϕ, n/n0 .-1.0,κ)
-    get_E_from_ϕ!(ϕ,E,dx)
-
-    for i in 1:N
-        #j, y = get_index_and_distance(u[i],dx,L)
-        j, y = get_index_and_y(u[i],J,L)
-        if (j == J)
-            Efield = E[j] * (1. - y) + E[1] * y;
-        else
-            Efield = E[j] * (1. - y) + E[j+1] * y;
-        end
-
-        du[i] = u[N+i]/sqrt(1 + u[N+i]^2) # relativistic factor
-        du[N+i] = - Efield
-    end
-    return du[:]
-end
-
-
-"""
-Calculates the RHS of the evolution equation. 
-Returns du 
-uses several functions which are passed as parameters
-p = N, J, L, dx, n, S, du, get_current! 
-"""
-function RHSC_old(u,t,p_RHSC)
-  N, J, L, dx, order, n, S, du, get_density!, get_current! = p_RHSC
-    p = L, N, J, κ, dx, order
-    #get_density!(u, n, p)
-    get_current!(u, S, p)
-    E = view(u,2N+1:2N+J)
-    n0 = N/L
-
-    for i in 1:N
-        #j, y = get_index_and_distance(u[i],dx,L)
-        j, y = get_index_and_y(u[i],J,L)
-        
-        if order == 1
-          if (j == J)
-              Efield = E[j] * (1. - y) + E[1] * y;
-          else
-              Efield = E[j] * (1. - y) + E[j+1] * y;
-          end
-        elseif order == 2
-          if y <= 1/2
-            if j == 1
-              Efield = E[j] * (3/4 - y^2) + E[2] * (1+2y)^2/8 + E[J] * (1-2y)^2/8
-            elseif j==J
-              Efield = E[j] * (3/4 - y^2) + E[1] * (1+2y)^2/8 + E[J-1] * (1-2y)^2/8
-            else
-              Efield = E[j] * (3/4 - y^2) + E[j+1] * (1+2y)^2/8 + E[j-1] * (1-2y)^2/8
-            end
-          elseif y <= 3/2
-            if j == J-1
-              Efield = E[j] * (3 - 2y)^2/8 + E[J] * (3/4 - (1-y)^2) + E[1] * (1-2y)^2/8
-            elseif j == J
-              Efield = E[j] * (3 - 2y)^2/8 + E[1] * (3/4 - (1-y)^2) + E[2] * (1-2y)^2/8
-            else
-              Efield = E[j] * (3 - 2y)^2/8 + E[j+1] * (3/4 - (1-y)^2) + E[j+2] * (1-2y)^2/8
-            end
-          end
-        end
-
-        du[i] = u[N+i]
-        du[N+i] = - Efield
-    end
-
-      for j in 1:J
-        du[2N+j] =  S[j]/n0 # particles have negative sign!
-      end
-
-    return du[:]
-end
 
 function RHSC(u,t,p_RHSC)
   if nthreads() == 1
     N, J, L, dx, order, n, S, du, get_density!, get_current!, Interpolate = p_RHSC
-    p = L, N, J, κ, dx, order
+    p = (N, L, J, κ, dx, order)
     get_current!(u, S, p)
   else
     N, J, L, dx, order, n, S, du, get_density!, get_current!, Interpolate, TS = p_RHSC
-    p = L, N, J, κ, dx, order, TS
+    p = (N, L, J, κ, dx, order, TS)
     get_current_threads!(u, S, p)
   end
-
-    #get_density!(u, n, p)
     
     E = view(u,2N+1:2N+J)
-    n0 = N/L
     
     #@threads for i in 1:N
     for i in 1:N
@@ -496,7 +262,7 @@ function RHSC(u,t,p_RHSC)
 
     #@threads for j in 1:J
     for j in 1:J
-        @inbounds du[2N+j] =  S[j]/n0 # particles have negative sign!
+        @inbounds du[2N+j] =  S[j] # particles have negative sign!
     end
     return du[:]
 end
@@ -504,7 +270,7 @@ end
 function RHSC_rel(u,t,p_RHSC)
   if nthreads() == 1
     N, J, L, dx, order, n, S, du, get_density!, get_current_rel!, Interpolate = p_RHSC
-    par_grid = N, L, J, dx, order = par_grid
+    par_grid = (N, L, J, dx, order)
     get_current_rel!(u, S, par_grid)
   else
     N, J, L, dx, order, n, S, du, get_density!, get_current_rel_threads!, Interpolate, TS = p_RHSC
@@ -513,7 +279,7 @@ function RHSC_rel(u,t,p_RHSC)
   end
 
     E = view(u,2N+1:2N+J)
-    n0 = N/L
+    #n0 = N/J
     
     #@threads for i in 1:N
     for i in 1:N
@@ -529,7 +295,7 @@ function RHSC_rel(u,t,p_RHSC)
 
     #@threads for j in 1:J
     for j in 1:J
-        @inbounds du[2N+j] =  S[j]/n0 # particles have negative sign!
+        @inbounds du[2N+j] =  S[j] # particles have negative sign!
     end
     return du[:]
 end
@@ -612,7 +378,7 @@ function get_energy(u,p)
     energy_E = energy_E + u[2N+j]^2
   end
   
-  return energy_K/2,  dx*energy_E /2 * n0
+  return energy_K / 2,  dx * energy_E /2 * n0
 end
 
 function get_energy_rel(u,p)
@@ -627,8 +393,7 @@ function get_energy_rel(u,p)
   for j in 1:J
     energy_E = energy_E + u[2N+j]^2
   end
-  
-  return energy_K,  dx*energy_E /2 * n0
+  return energy_K,  dx * energy_E / 2 * n0
 end
 
 """
@@ -777,7 +542,7 @@ function get_averages(v,par_grid,par_evolv, par_f)
   Q_T = zeros(M_g)
   S_T = zeros(M_g)
   #E_E = 0.0
-  #E_K = zeros(J)
+  T = zeros(M_g)
   #P = zeros(J)
   ρ = zeros(J)
   S = zeros(J)
@@ -790,8 +555,9 @@ function get_averages(v,par_grid,par_evolv, par_f)
       get_current_rel!(v[:,j], S, par_grid)
       Q_T[j] = get_total_charge(ρ,(J, dx))
       S_T[j] = sum(S)/N/Q_T[j]
+      T[j] = var(v[N+1:2N,j])
   end
-  return Energy_K, Energy_E, EField_T, p_T, Q_T, S_T
+  return Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T
 end
 
 function retrieve_data(data, par_grid, par_evolv)
