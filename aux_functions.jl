@@ -81,6 +81,35 @@ function get_density!(u, n, par_grid)
     n[:] = n[:]/n0 # return rho directly (we need to subtract 1 in cases where we assume positive particles, but this is done elsewhere.)
 end
 
+function get_density_threads!(u, n, p)
+  par_grid, Tn = p
+  N, L, J, dx, order = par_grid
+  j = fill(Int64(1),nthreads()) 
+  y = fill(Float64(1.0),nthreads())
+  Tn .= zeros(Float64)
+  n0 = N/L
+  # Evaluate number density.
+  @threads for i in 1:N
+    @inbounds j[threadid()], y[threadid()] = get_index_and_y(u[i], J, L)
+    for l in (-order):-j[threadid()]
+      @inbounds Tn[J + j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) 
+    end
+    for l in max(-order,-j[threadid()]+1):min(order,J-j[threadid()])
+      @inbounds Tn[j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) 
+    end
+    for l in J-j[threadid()]+1:order
+      @inbounds Tn[j[threadid()] - J + l, threadid()] += W(order, -y[threadid()] + l) 
+    end
+  end
+  n .= zeros(Float64)
+  @threads for i in 1:J
+    for t in 1:nthreads()
+      @inbounds n[i] += Tn[i, t]/dx/n0
+    end
+  end
+  return n[:]
+end
+
 function get_total_charge(ρ,par)
   J, dx = par
   Q = 0.0
@@ -378,7 +407,8 @@ function get_energy(u,p)
     energy_E = energy_E + u[2N+j]^2
   end
   
-  return energy_K / 2,  dx * energy_E /2 * n0
+  #return energy_K / 2,  dx * energy_E /2 * n0
+  return energy_K / 2 / n0,  dx * energy_E / 2 # normalized version
 end
 
 function get_energy_rel(u,p)
@@ -393,7 +423,8 @@ function get_energy_rel(u,p)
   for j in 1:J
     energy_E = energy_E + u[2N+j]^2
   end
-  return energy_K,  dx * energy_E / 2 * n0
+  # return energy_K,  dx * energy_E / 2 * n0
+  return energy_K/n0,  dx * energy_E / 2 # normalized version
 end
 
 """
@@ -559,6 +590,45 @@ function get_averages(v,par_grid,par_evolv, par_f)
   end
   return Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T
 end
+
+function get_averages_threads(v,par_grid,par_evolv, par_f)
+  
+  (N, L, J, dx, order) = par_grid
+  (t_i, t_f, M, M_g, dt) = par_evolv
+  (θ, nm, κ) = par_f
+
+  TS = zeros(J, nthreads())
+  Tn = zeros(J, nthreads())
+  
+
+  par_density = (par_grid, Tn)
+  par_current = (par_grid, TS)
+
+  Energy_K = zeros(M_g)
+  Energy_E = zeros(M_g)
+  EField_T = zeros(M_g)
+  p_T = zeros(M_g)
+  Q_T = zeros(M_g)
+  S_T = zeros(M_g)
+  #E_E = 0.0
+  T = zeros(M_g)
+  #P = zeros(J)
+  ρ = zeros(J)
+  S = zeros(J)
+
+  for j in 1:M_g
+      (Energy_K[j],Energy_E[j]) = get_energy_rel(v[:,j],(L,N,J))
+      EField_T[j] = sum(v[2N+1:end,j])*dx
+      p_T[j] = sum(v[N+1:2N])*dx
+      get_density_threads!(v[:,j], ρ, par_density)
+      get_current_rel_threads!(v[:,j], S, par_current)
+      Q_T[j] = get_total_charge(ρ,(J, dx))
+      S_T[j] = sum(S)/N/Q_T[j]
+      T[j] = var(v[N+1:2N,j])
+  end
+  return Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T
+end
+
 
 function retrieve_data(data, par_grid, par_evolv)
   (N, L, J, dx, order) = par_grid
