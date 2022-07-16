@@ -658,3 +658,84 @@ function retrieve_meta_data(file_name::String)
 end
 
 
+########################################################################
+# plotting functions
+########################################################################
+
+function plot_averages(averages, N, run_name, save_plots)
+  Energy_K, Energy_E, EField_T, p_T, Q_T, S_T = averages
+  plt = plot(layout=(2,2), size=(800,600))
+  plot!(subplot=1, (Energy_K[1:end] .- Energy_K[1]), label="Energy_K")
+  plot!(subplot=1, (Energy_E[1:end] .- Energy_E[1]), label="Energy_E")
+  #plot!(subplot=1, Energy_K, label="Energy_K")
+  #plot!(subplot=1, Energy_E[1:400], label="Energy_E")
+  plot!(subplot=2, (Energy_K + Energy_E) ./ (Energy_K[1] + Energy_E[1]) .- 1, label="Total Energy")
+  plot!(subplot=3, Q_T/N, label="charge")
+  plot!(subplot=4, S_T, label="Total Current", legend=:topleft)
+  if save_plots
+      png("Images/"  * run_name * "_total_run")
+  end
+  return plt
+end
+
+function plot_energies(Energy_K, Energy_E, run_name, save_plots)
+  plt = plot(abs.(Energy_K[2:end] .- Energy_K[1]), title = "Energy conservation (order = $(order))", label = "Kinetic Energy"
+    #, legend = :outertopright
+    , legend = :bottomright, ls=:dash)
+    plot!(abs.(Energy_E[2:end] .- Energy_E[1]), label = "|Electric Energy|", ls=:dot)
+    plot!(abs.(Energy_K[2:end]  + Energy_E[2:end] .- (Energy_K[1]+Energy_E[1])) ./ (Energy_K[1] + Energy_E[1])
+    , yscale=:log10
+    #, xscale=:log10
+    , label = "Total Energy / Initial Energy -1 ")
+    if save_plots
+    png("Images/" * run_name * "energy_conservation")
+    end
+  return plt
+end
+
+function energy_fit(t_series, Energy_E, pe1, pe2, run_name, save_plots, yscale=:lin)
+  @. model_e1(x,p) = p[1] + p[2]*cos(p[3]*x + p[4])*exp(-p[5]*x)
+  @. model_e2(x,p) = p[1] + p[2]*(cos(p[3]*x + p[4])^2-p[6])*exp(-p[5]*x)
+  #pe1 = [1.0; 1; 2; 2; 0.002]
+  #pe2 = [0.0001; -0.0001; 1; 0; 0.002; 0.5]
+
+  fit_energy_1 = curve_fit(model_e1, t_series, Energy_E, pe1);
+  fit_energy_2 = curve_fit(model_e2, t_series, Energy_E, pe2);
+
+  plt = Plots.scatter(t_series,Energy_E
+  , markersize=1
+  , title = "Electric Energy decay"
+  , label= "Electric Energy"
+  , yscale=yscale 
+  )
+
+  plot!(t_series,model_e1(t_series,fit_energy_1.param), ls=:dash
+  , markersize = 0.2
+  #, xlims=(00,100)
+  , label="Fit"
+  )
+  plot!(t_series,model_e2(t_series,fit_energy_2.param), ls=:dash
+  , markersize = 0.2
+  , xlims=(0,100)
+  , label="Fit"
+  )
+  if save_plots
+      png("Images/" * run_name * "_energy_fit")
+  end
+  return fit_energy_1.param, fit_energy_2.param, plt 
+end
+
+function temperature_fit(t_series, T, p_tl001, N_i=1, N_f=M_g, run_name, save_plots)
+  @. model_tl001(x,p) = p[1] + p[2]*cos(p[3]*x + p[4])*exp(-p[5]*x) + p[6]*cos(p[7]*x + p[8])*exp(-p[9]*x)
+  #p_tl001 = [0.001; 3; 2; 0; 0.1; 0; 1.; 0; 0]
+  fit_tl001 = curve_fit(model_tl001, t_series[1:end], T[1:end], p_tl001)
+  #@. model_tl001_s(x,p) = p[1] + p[2]*cos(p[3]*x + p[4])*exp(-p[5]*x)
+  #p_tl001_s = [0.001; 3; 2; 0; 0.0]
+  #fit_tl001_s = curve_fit(model_tl001_s, t_series[1:end], T[1:end], p_tl001_s)
+  plt = Plots.scatter(t_series[N_i:N_f], T[N_i:N_f], ms = 1)
+  plot!(t_series[N_i:N_f], model_tl001_s(t_series[N_i:N_f],fit_tl001_s.param))
+  if save_plots
+      png("Images/" * run_name * "temperature_fit")
+  end
+  return fit_tl001, plt
+end
