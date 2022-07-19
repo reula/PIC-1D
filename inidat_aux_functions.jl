@@ -5,14 +5,14 @@ f is the distribution function and p are its parameters. We need also
 f_max which is a function of p, and the interval of the sampling region
 int = (x_min,x_max)
 """
-function random_sampling_from_distribution(f,f_max,p,interval)
+function random_sampling_from_distribution(f,f_max,par_f,interval)
  (x_max,x_min) = interval
- fmax = f_max(p)
+ fmax = f_max(par_f)
  x = x_min + (x_max - x_min) * (rand());
  #  Accept/reject value
- f_v = f(x,p)
+ f_v = f(x,par_f)
  x_t = fmax * rand()
- if (x_t > f_v) return random_sampling_from_distribution(f,f_max,p,interval)
+ if (x_t > f_v) return random_sampling_from_distribution(f,f_max,par_f,interval)
  else return x
  end
 end
@@ -31,18 +31,16 @@ f_p_max = Maximum of Distribution function for momentum,
 par_f_r = parameters for f_r, 
 par_f_p = parameters for f_p
 """
-function build_initial_data(data_name::String, pars, f_x, f_x_max, par_f_x, f_p, f_p_max, par_f_p)
-    (N, L) = pars
+function build_initial_data(data_name::String, pars, f_x, f_x_max, par_f_x, interval_x, f_p, f_p_max, par_f_p, interval_p)
+    N, = pars
     vp = zeros(N÷2)
     r = zeros(N)
     
-    interval_x = (0.0, L)
+    
     for i in 1:N
     r[i] = random_sampling_from_distribution(f_x,f_x_max,par_f_x,interval_x)
     end
     
-    p_max = 1 + 10*θ #p_max = sqrt(20*θ)
-    interval_p = (0.0, p_max)
 
     for i in 1:N÷2
         vp[i] = random_sampling_from_distribution(f_p,f_p_max,par_f_p,interval_p)
@@ -54,7 +52,7 @@ function build_initial_data(data_name::String, pars, f_x, f_x_max, par_f_x, f_p,
     file_name = "Initial_Distributions/" * data_name * ".jld2"
     
     field_name = "par_dis"
-    run_pars = Dict("data_name" => data_name, "pars" => (N,L), "par_f_x" => par_f_x,"par_f_p" => par_f_p)
+    run_pars = Dict("data_name" => data_name, "pars" => pars, "par_f_x" => par_f_x,"par_f_p" => par_f_p)
     save(file_name, run_pars)
     
     #save("Initial_Distributions/" * data_name * ".jld2", "field_name", par_dis)
@@ -76,9 +74,11 @@ end
 
 # momentum distributions
 
-f_p_rel(p,(θ,)) = exp((1 - sqrt(1+p^2))/θ) 
-f_p_rel_max(θ) = 1
+f_p_rel(p,(θ,)) = exp((1 - sqrt(1+p^2))/θ) / sqrt(θ*π/2)
+f_p_rel_max((θ,)) = 1 / sqrt(θ*π/2)
 
+f_p(p,(θ,)) = exp(- p^2/θ/2) / sqrt(θ*π/2)
+f_p_max((θ,)) = 1 / sqrt(θ*π/2)
 
 """The following routine returns a random velocity distributed on a double Maxwellian distribution function 
 corresponding to two counter-streaming beams. The algorithm used to achieve this is called the rejection method, 
@@ -107,13 +107,14 @@ end
 # space distributions 
 
 function f_x(x,par_f_x) 
-    α, k = par_f_x
-    return 1 + α *cos(k*x)
+    α, mn, L = par_f_x
+    k = 2π*mn/L
+    return (1 + α *cos(k*x))/L
 end
 
 function f_x_max(par_f_x)
-    α, k = par_f_x
-    return 1+α
+    α, mn, L = par_f_x
+    return (1+abs(α))/L
 end
 
 
