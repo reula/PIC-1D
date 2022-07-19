@@ -424,7 +424,7 @@ function get_energy_rel(u,p)
     energy_E = energy_E + u[2N+j]^2
   end
   # return energy_K,  dx * energy_E / 2 * n0
-  return energy_K/n0,  dx * energy_E / 2 # normalized version
+  return energy_K / n0,  dx * energy_E / 2 # normalized version
 end
 
 """
@@ -491,7 +491,7 @@ function Interpolate_2(order, vector, x, J, L)
   j, y = get_index_and_y(x,J,L)
   vi = 0.0
     for l in (-order):order 
-      vi += (vector[mod1(j+l,J)] + vector[mod1(j+l+1,J)])/ 2 * W(order, -y + 1/2 + l)
+      vi += (vector[mod1(j+l,J)] + vector[mod1(j+l+1,J)]) * W(order, -y + 1/2 + l) / 2
     end
   return vi
 end
@@ -693,7 +693,7 @@ function plot_energies(Energy_K, Energy_E, run_name, save_plots)
   return plt
 end
 
-function energy_fit(t_series, Energy_E, pe1, pe2, run_name, save_plots, yscale=:lin)
+function energy_fit(t_series, Energy_E, pe1, pe2, run_name, save_plots; yscale=:identity)
   @. model_e1(x,p) = p[1] + p[2]*cos(p[3]*x + p[4])*exp(-p[5]*x)
   @. model_e2(x,p) = p[1] + p[2]*(cos(p[3]*x + p[4])^2-p[6])*exp(-p[5]*x)
   #pe1 = [1.0; 1; 2; 2; 0.002]
@@ -725,7 +725,7 @@ function energy_fit(t_series, Energy_E, pe1, pe2, run_name, save_plots, yscale=:
   return fit_energy_1.param, fit_energy_2.param, plt 
 end
 
-function temperature_fit(t_series, T, p_tl001, N_i=1, N_f=M_g, run_name, save_plots)
+function temperature_fit(t_series, T, p_tl001, N_i, N_f, run_name, save_plots)
   @. model_tl001(x,p) = p[1] + p[2]*cos(p[3]*x + p[4])*exp(-p[5]*x) + p[6]*cos(p[7]*x + p[8])*exp(-p[9]*x)
   #p_tl001 = [0.001; 3; 2; 0; 0.1; 0; 1.; 0; 0]
   fit_tl001 = curve_fit(model_tl001, t_series[1:end], T[1:end], p_tl001)
@@ -733,7 +733,7 @@ function temperature_fit(t_series, T, p_tl001, N_i=1, N_f=M_g, run_name, save_pl
   #p_tl001_s = [0.001; 3; 2; 0; 0.0]
   #fit_tl001_s = curve_fit(model_tl001_s, t_series[1:end], T[1:end], p_tl001_s)
   plt = Plots.scatter(t_series[N_i:N_f], T[N_i:N_f], ms = 1)
-  plot!(t_series[N_i:N_f], model_tl001_s(t_series[N_i:N_f],fit_tl001_s.param))
+  plot!(t_series[N_i:N_f], model_tl001(t_series[N_i:N_f],fit_tl001.param))
   if save_plots
       png("Images/" * run_name * "temperature_fit")
   end
