@@ -1,7 +1,6 @@
 using Distributed
 using DistributedArrays
 using DistributedArrays.SPMD
-#@everywhere using SharedArrays
 @everywhere using Distributed
 @everywhere using DistributedArrays
 @everywhere using DistributedArrays.SPMD
@@ -101,6 +100,16 @@ Given a 3-momentum computes the 3-velocity
 """
 p2v(p;m=1) = p/sqrt(m^2+p^2)
 
+""" 
+The energy function from momentum 
+"""
+γ_p(p;m=1) = sqrt(m^2 + p^2)/m 
+
+""" 
+The energy function from 3-velocity
+"""
+γ(v) = 1/sqrt(1 - v^2)
+
 
 """The routine below evaluates the electron number density on an evenly spaced mesh given the instantaneous electron coordinates.
 
@@ -121,8 +130,6 @@ function get_density!(u, n, par_grid)
   end
   return n[:] # return rho directly (we need to subtract 1 in cases where we assume positive particles, but this is done elsewhere.)
 end
-
-
 
 
 function get_density_threads!(u, n, p)
@@ -163,41 +170,10 @@ function get_total_charge(ρ,par)
   return Q * dx
 end
 
-function get_density_ro!(u, n, par_grid)
-  N, L, J, dx, order = par_grid
-  r = view(u,1:2:2N-1)
-  fill!(n,0.0)
-  n0 = N/L
-  # Evaluate number density.
-  for i in 1:N
-    j, y = get_index_and_y(r[i],J,L)
-    for l in (-order):order 
-      n[mod1(j + l, J)] += W(order, -y + l) / dx;
-    end
-  end
-    n .= n/n0 #- 1.0 # return rho directly
-end
-
 """The routine below evaluates the electron current on an evenly spaced mesh given the instantaneous electron coordinates.
-Non relativistic version
 // Evaluates electron number density S(0:J-1) from 
 // array r(0:N-1) of electron coordinates.
 """
-function get_current!(u, S, par_grid)
-  N, L, J, dx, order = par_grid
-  r = view(u,1:N)
-  v = view(u,N+1:2N) # non-relativistic version
-  fill!(S,0.0)
-
-  for i in 1:N
-    @inbounds j, y = get_index_and_y(r[i],J,L)
-    for l in (-order):order 
-      @inbounds S[mod1(j + l, J)] += W(order, -y + l) * v[i]
-      #S[mod1(j + l, J)] += W_alt(order, -y + l) * v[i]
-    end
-  end
-  S / dx
-end
 
 function get_current_rel!(u, S, par_grid)
   N, L, J, dx, order = par_grid
@@ -210,62 +186,11 @@ function get_current_rel!(u, S, par_grid)
     @inbounds v = p2v(p[i]) / dx / n0
     for l in (-order):order 
       @inbounds S[mod1(j + l, J)] += W(order, -y + l) * v;
-      #S[mod1(j + l, J)] += W_alt(order, -y + l) * v / dx;
     end
   end
   return S[:] # allready normalized with n0
 end
 
-
-
-function get_current_ro!(u, S, par_grid)
-  N, L, J, dx, order = par_grid
-  r = view(u,1:2:2N-1)
-  v = view(u,2:2:2N) # non_relativistic version
-  fill!(S,0.0)
-  n0 = N/L
-  for i in 1:N
-    @inbounds j, y = get_index_and_y(r[i],J,L)
-    for l in (-order):order 
-      @inbounds S[mod1(j + l, J)] += W(order, -y + l) * v[i] / dx/ n0;
-    end
-  end
-end
-
-
-
-function get_current_threads!(u, S, par_grid)
-  N, L, J, dx, order = par_grid
-  j = fill(Int64(1),nthreads()) 
-  y = fill(Float64(1.0),nthreads())
-  TS .= zeros(Float64)
-  n0 = N/L
-  @threads for i in 1:N
-    @inbounds j[threadid()], y[threadid()] = get_index_and_y(u[i], J, L)
-    #@inbounds v = u[N+i] # in the relativistic version we carry p, so we need to transform to velocities
-    @inbounds v = p2v(u[N+i]) / dx # we divide also by dx so as to save computations
-    for l in (-order):-j[threadid()]
-      @inbounds TS[J + j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * v;
-    end
-    for l in max(-order,-j[threadid()]+1):min(order,J-j[threadid()])
-      @inbounds TS[j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * v;
-    end
-    for l in J-j[threadid()]+1:order
-      @inbounds TS[j[threadid()] - J + l, threadid()] += W(order, -y[threadid()] + l) * v;
-    end
-    # for l in (-order):order
-    #   @inbounds TS[mod1(j + l, J), threadid()] += W(order, -y + l) * v[i] / dx;
-    # end
-  end
-
-  S .= zeros(Float64)
-  @threads for i in 1:J
-    for t in 1:nthreads()
-      @inbounds S[i] += TS[i, t]/dx/n0
-    end
-  end
-  return S[:]
-end
 
 function get_current_rel_threads!(u, S, p)
   par_grid, TS = p
@@ -276,7 +201,7 @@ function get_current_rel_threads!(u, S, p)
   n0 = N/L
   @threads for i in 1:N
     @inbounds j[threadid()], y[threadid()] = get_index_and_y(u[i], J, L)
-    @inbounds v = p2v(u[N+i]) 
+    @inbounds v = p2v(u[N+i]) / dx / n0
     for l in (-order):-j[threadid()]
       @inbounds TS[J + j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * v
     end
@@ -293,9 +218,9 @@ function get_current_rel_threads!(u, S, p)
     =#
   end
   S .= zeros(Float64)
-  @threads for i in 1:J
+  @threads for j in 1:J
     for t in 1:nthreads()
-      @inbounds S[i] += TS[i, t]/dx/n0
+      @inbounds S[j] += TS[j, t]
     end
   end
   S[:]
@@ -310,37 +235,6 @@ uses several functions which are passed as parameters
 p = N, J, L, dx, Density!, Electric!, Poisson1D!
 """
 
-function RHSC(u,t,p_RHSC)
-  if nthreads() == 1
-    N, J, L, dx, order, n, S, du, get_density!, get_current!, Interpolate = p_RHSC
-    p = (N, L, J, κ, dx, order)
-    get_current!(u, S, p)
-  else
-    N, J, L, dx, order, n, S, du, get_density!, get_current!, Interpolate, TS = p_RHSC
-    p = (N, L, J, κ, dx, order, TS)
-    get_current_threads!(u, S, p)
-  end
-    
-    E = view(u,2N+1:2N+J)
-    
-    #@threads for i in 1:N
-    for i in 1:N
-        #j, y = get_index_and_y(u[i],J,L)
-        #Efield = 0.0
-        #for l in (-order):order 
-        #  Efield += E[mod1(j+l,J)] * W(order, -y + l)
-        #end
-
-        @inbounds du[i] = p2v(u[N+i]) # relativistic factor
-        @inbounds du[N+i] = - Interpolate(order, E, u[i], J, L)
-    end
-
-    #@threads for j in 1:J
-    for j in 1:J
-        @inbounds du[2N+j] =  S[j] # particles have negative sign!
-    end
-    return du[:]
-end
 
 function RHSC_rel(u,t,p_RHSC)
   if nthreads() == 1
@@ -354,21 +248,12 @@ function RHSC_rel(u,t,p_RHSC)
   end
 
     E = view(u,2N+1:2N+J)
-    #n0 = N/J
     
-    #@threads for i in 1:N
-    for i in 1:N
-        #j, y = get_index_and_y(u[i],J,L)
-        #Efield = 0.0
-        #for l in (-order):order 
-        #  Efield += E[mod1(j+l,J)] * W(order, -y + l)
-        #end
-
-        @inbounds du[i] = p2v(u[N+i]) # relativistic factor (u is the momentum)
-        @inbounds du[N+i] = - Interpolate(order, E, u[i], J, L)
+    for i in 1:N        
+      @inbounds du[i] = p2v(u[N+i]) # relativistic factor (u is the momentum)
+      @inbounds du[N+i] = - Interpolate(order, E, u[i], J, L)
     end
 
-    #@threads for j in 1:J
     for j in 1:J
         @inbounds du[2N+j] =  S[j] # particles have negative sign!
     end
@@ -384,18 +269,6 @@ function Coordinate_test(r,L)
     end
 end
 
-function make_periodic_old!(r,L)
-    N = length(r)
-    for i in 1:N
-      if (r[i] < 0.) 
-        r[i] = r[i] + L;
-      end
-      if (r[i] > L) 
-        r[i] = r[i] - L;
-      end
-    end
-    return r[:]
-end
 
 function make_periodic!(r,L)
   return mod1.(r,L)
@@ -438,23 +311,6 @@ function get_index_and_y(s,J,L)
   #j = convert(Int64,s) + 1
   y = (s%1)
   return j, y
-end
-
-function get_energy(u,p)
-  L, N, J = p
-  dx = L/J
-  n0 = N/L
-  energy_K = 0.0
-  energy_E = 0.0
-  for i in 1:N
-    energy_K = energy_K + u[N+i]^2
-  end
-  for j in 1:J
-    energy_E = energy_E + u[2N+j]^2
-  end
-  
-  #return energy_K / 2,  dx * energy_E /2 * n0
-  return energy_K / 2 / n0,  dx * energy_E / 2 # normalized version
 end
 
 function get_energy_rel(u,p)
@@ -608,6 +464,11 @@ function reorder_particles!(u,uro)
   end
 end
 
+#=
+################################################################################################
+Some functions to handle data
+################################################################################################
+=#
 function get_averages(v,par_grid,par_evolv, par_f)
   (N, L, J, dx, order) = par_grid
   (t_i, t_f, M, M_g, dt) = par_evolv
