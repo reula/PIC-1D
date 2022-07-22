@@ -61,6 +61,47 @@ function filter_constant!(E)
   E[:] = irfft(V,J)
 end
 
+function compare_electric_field_constraints(v,j,par_grid, par_evolv, run_name, save_plots)
+  N, L, J, dx, order = par_grid
+  t_i, t_f, M, M_g, dt = par_evolv
+  ρ_f = zeros(J)
+  E_f = zeros(J)
+  E_i = v[2N+1:end,1]
+  ϕ_f = zeros(J)
+  #S_f = zeros(J)
+
+  @assert j <= M_g
+
+
+  get_density!(v[:,j], ρ_f, par_grid)
+  get_ϕ!(ϕ_f, ρ_f .+ 1, 2π/L)
+  get_E_from_ϕ!(ϕ_f,E_f,dx)
+
+  if !remote_server || plots
+      plt = plot(x,E_f,label="from final density", ls=:dash, lw=2)
+      plot!(x,E_i,label="E_initial")
+      plot!(x,v[2N+1:end,j], label="E_final"
+      )
+      if save_plots
+      png("Images/" * run_name * "_Efield")
+      end
+  end
+return plt
+end
+
+
+""" 
+v2p(v;m=1)
+Given a 3-velocity computes the momentum
+"""
+v2p(v;m=1) = m*v/sqrt(1-v^2)
+"""
+p2v(p;m=1) 
+Given a 3-momentum computes the 3-velocity
+"""
+p2v(p;m=1) = p/sqrt(m^2+p^2)
+
+
 """The routine below evaluates the electron number density on an evenly spaced mesh given the instantaneous electron coordinates.
 
 // Evaluates electron number density n(0:J-1) from 
@@ -75,11 +116,14 @@ function get_density!(u, n, par_grid)
   for i in 1:N
     @inbounds j, y = get_index_and_y(r[i],J,L)
     for l in (-order):order 
-      @inbounds n[mod1(j + l, J)] += W(order, -y + l) / dx;
+      @inbounds n[mod1(j + l, J)] += W(order, -y + l) / dx / n0;
     end
   end
-    n[:] = n[:]/n0 # return rho directly (we need to subtract 1 in cases where we assume positive particles, but this is done elsewhere.)
+  return n[:] # return rho directly (we need to subtract 1 in cases where we assume positive particles, but this is done elsewhere.)
 end
+
+
+
 
 function get_density_threads!(u, n, p)
   par_grid, Tn = p
@@ -135,15 +179,14 @@ function get_density_ro!(u, n, par_grid)
 end
 
 """The routine below evaluates the electron current on an evenly spaced mesh given the instantaneous electron coordinates.
-
+Non relativistic version
 // Evaluates electron number density S(0:J-1) from 
 // array r(0:N-1) of electron coordinates.
 """
-
 function get_current!(u, S, par_grid)
   N, L, J, dx, order = par_grid
   r = view(u,1:N)
-  v = view(u,N+1:2N)
+  v = view(u,N+1:2N) # non-relativistic version
   fill!(S,0.0)
 
   for i in 1:N
@@ -164,7 +207,7 @@ function get_current_rel!(u, S, par_grid)
   n0 = N/L
   for i in 1:N
     @inbounds j, y = get_index_and_y(r[i],J,L)
-    @inbounds v = p[i]/sqrt(1+p[i]^2) / dx / n0
+    @inbounds v = p2v(p[i]) / dx / n0
     for l in (-order):order 
       @inbounds S[mod1(j + l, J)] += W(order, -y + l) * v;
       #S[mod1(j + l, J)] += W_alt(order, -y + l) * v / dx;
@@ -173,10 +216,12 @@ function get_current_rel!(u, S, par_grid)
   return S[:] # allready normalized with n0
 end
 
+
+
 function get_current_ro!(u, S, par_grid)
   N, L, J, dx, order = par_grid
   r = view(u,1:2:2N-1)
-  v = view(u,2:2:2N)
+  v = view(u,2:2:2N) # non_relativistic version
   fill!(S,0.0)
   n0 = N/L
   for i in 1:N
@@ -197,16 +242,16 @@ function get_current_threads!(u, S, par_grid)
   n0 = N/L
   @threads for i in 1:N
     @inbounds j[threadid()], y[threadid()] = get_index_and_y(u[i], J, L)
-    #@inbounds p = u[N+i] # in the relativistic version we carry p, so we need to transform to velocities
-    #@inbounds p = p/sqrt(1+p^2) / dx # we divide also by dx so as to save computations
+    #@inbounds v = u[N+i] # in the relativistic version we carry p, so we need to transform to velocities
+    @inbounds v = p2v(u[N+i]) / dx # we divide also by dx so as to save computations
     for l in (-order):-j[threadid()]
-      @inbounds TS[J + j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * u[N+i]/sqrt(1+u[N+i]^2);
+      @inbounds TS[J + j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * v;
     end
     for l in max(-order,-j[threadid()]+1):min(order,J-j[threadid()])
-      @inbounds TS[j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * u[N+i]/sqrt(1+u[N+i]^2);
+      @inbounds TS[j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * v;
     end
     for l in J-j[threadid()]+1:order
-      @inbounds TS[j[threadid()] - J + l, threadid()] += W(order, -y[threadid()] + l) * u[N+i]/sqrt(1+u[N+i]^2);
+      @inbounds TS[j[threadid()] - J + l, threadid()] += W(order, -y[threadid()] + l) * v;
     end
     # for l in (-order):order
     #   @inbounds TS[mod1(j + l, J), threadid()] += W(order, -y + l) * v[i] / dx;
@@ -231,18 +276,19 @@ function get_current_rel_threads!(u, S, p)
   n0 = N/L
   @threads for i in 1:N
     @inbounds j[threadid()], y[threadid()] = get_index_and_y(u[i], J, L)
+    @inbounds v = p2v(u[N+i]) 
     for l in (-order):-j[threadid()]
-      @inbounds TS[J + j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * u[N+i]/sqrt(1+u[N+i]^2)
+      @inbounds TS[J + j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * v
     end
     for l in max(-order,-j[threadid()]+1):min(order,J-j[threadid()])
-      @inbounds TS[j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * u[N+i]/sqrt(1+u[N+i]^2)
+      @inbounds TS[j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * v
     end
     for l in J-j[threadid()]+1:order
-      @inbounds TS[j[threadid()] - J + l, threadid()] += W(order, -y[threadid()] + l) * u[N+i]/sqrt(1+u[N+i]^2)
+      @inbounds TS[j[threadid()] - J + l, threadid()] += W(order, -y[threadid()] + l) * v
     end
     #= 
     for l in (-order):order
-       @inbounds TS[mod1(j + l, J), threadid()] += W(order, -y + l) * u[N+i]/sqrt(1+u[N+i]^2)
+       @inbounds TS[mod1(j + l, J), threadid()] += W(order, -y + l) * v
     end
     =#
   end
@@ -285,7 +331,7 @@ function RHSC(u,t,p_RHSC)
         #  Efield += E[mod1(j+l,J)] * W(order, -y + l)
         #end
 
-        @inbounds du[i] = u[N+i]/sqrt(1 + u[N+i]^2) # relativistic factor
+        @inbounds du[i] = p2v(u[N+i]) # relativistic factor
         @inbounds du[N+i] = - Interpolate(order, E, u[i], J, L)
     end
 
@@ -318,7 +364,7 @@ function RHSC_rel(u,t,p_RHSC)
         #  Efield += E[mod1(j+l,J)] * W(order, -y + l)
         #end
 
-        @inbounds du[i] = u[N+i]/sqrt(1 + u[N+i]^2) # relativistic factor (u is the momentum)
+        @inbounds du[i] = p2v(u[N+i]) # relativistic factor (u is the momentum)
         @inbounds du[N+i] = - Interpolate(order, E, u[i], J, L)
     end
 
@@ -584,7 +630,7 @@ function get_averages(v,par_grid,par_evolv, par_f)
       p_T[j] = sum(v[N+1:2N])*dx
       get_density!(v[:,j], ρ, par_grid)
       get_current_rel!(v[:,j], S, par_grid)
-      Q_T[j] = get_total_charge(ρ,(J, dx))
+      Q_T[j] = get_total_charge(ρ,(J, dx))/L # we divide by L because the density is 1, so the total charge is L, this way we compare with 1.
       S_T[j] = sum(S)/N/Q_T[j]
       T[j] = var(v[N+1:2N,j])
   end
@@ -622,7 +668,7 @@ function get_averages_threads(v,par_grid,par_evolv, par_f)
       p_T[j] = sum(v[N+1:2N])*dx
       get_density_threads!(v[:,j], ρ, par_density)
       get_current_rel_threads!(v[:,j], S, par_current)
-      Q_T[j] = get_total_charge(ρ,(J, dx))
+      Q_T[j] = get_total_charge(ρ,(J, dx)) / L # we divide by L because the density is 1, so the total charge is L, this way we compare with 1.
       S_T[j] = sum(S)/N/Q_T[j]
       T[j] = var(v[N+1:2N,j])
   end
@@ -662,28 +708,30 @@ end
 # plotting functions
 ########################################################################
 
-function plot_averages(averages, N, run_name, save_plots)
+function plot_averages(averages, t_series, N, run_name, save_plots)
   Energy_K, Energy_E, EField_T, p_T, Q_T, S_T = averages
+  E1 = abs(Energy_K[1] + Energy_E[1])
   plt = plot(layout=(2,2), size=(800,600))
-  plot!(subplot=1, (Energy_K[1:end] .- Energy_K[1]), label="Energy_K")
-  plot!(subplot=1, (Energy_E[1:end] .- Energy_E[1]), label="Energy_E")
-  #plot!(subplot=1, Energy_K, label="Energy_K")
-  #plot!(subplot=1, Energy_E[1:400], label="Energy_E")
-  plot!(subplot=2, (Energy_K + Energy_E) ./ (Energy_K[1] + Energy_E[1]) .- 1, label="Total Energy")
-  plot!(subplot=3, Q_T/N, label="charge")
-  plot!(subplot=4, S_T, label="Total Current", legend=:topleft)
+  plot!(subplot=1, t_series, Energy_K[1:end] .- Energy_K[1], label="Energy_K")
+  plot!(subplot=1, t_series, Energy_E[1:end] .- Energy_E[1], label="Energy_E")
+  #plot!(subplot=1, t_series, Energy_K, label="Energy_K")
+  #plot!(subplot=1, t_series, Energy_E[1:400], label="Energy_E")
+  plot!(subplot=2, t_series, (Energy_K + Energy_E) ./ E1 .- 1.0, label="Total Energy")
+  plot!(subplot=3, t_series, Q_T .- 1, label="charge")
+  plot!(subplot=4, t_series, S_T, label="Total Current", legend=:topleft)
   if save_plots
       png("Images/"  * run_name * "_total_run")
   end
   return plt
 end
 
-function plot_energies(Energy_K, Energy_E, run_name, save_plots)
-  plt = plot(abs.(Energy_K[2:end] .- Energy_K[1]), title = "Energy conservation (order = $(order))", label = "Kinetic Energy"
+function plot_energies(Energy_K, Energy_E, t_series, run_name, save_plots)
+  E1 = abs(Energy_K[1] + Energy_E[1])
+  plt = plot(t_series, abs.(Energy_K[2:end] .- Energy_K[1]), title = "Energy conservation (order = $(order))", label = "Kinetic Energy"
     #, legend = :outertopright
     , legend = :bottomright, ls=:dash)
-    plot!(abs.(Energy_E[2:end] .- Energy_E[1]), label = "|Electric Energy|", ls=:dot)
-    plot!(abs.(Energy_K[2:end]  + Energy_E[2:end] .- (Energy_K[1]+Energy_E[1])) ./ (Energy_K[1] + Energy_E[1])
+    plot!(t_series, abs.(Energy_E[2:end] .- Energy_E[1]), label = "|Electric Energy|", ls=:dot)
+    plot!(t_series, abs.(Energy_K[2:end] + Energy_E[2:end] .- E1) ./ E1
     , yscale=:log10
     #, xscale=:log10
     , label = "Total Energy / Initial Energy -1 ")
@@ -716,7 +764,7 @@ function energy_fit(t_series, Energy_E, pe1, pe2, run_name, save_plots; yscale=:
   )
   plot!(t_series,model_e2(t_series,fit_energy_2.param), ls=:dash
   , markersize = 0.2
-  , xlims=(0,100)
+  #, xlims=(0,100)
   , label="Fit"
   )
   if save_plots
