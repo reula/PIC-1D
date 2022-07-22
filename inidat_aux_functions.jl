@@ -74,11 +74,21 @@ end
 
 # momentum distributions
 
-f_p_rel(p,(θ,)) = exp((1 - sqrt(1+p^2))/θ) / sqrt(θ*π/2)
-f_p_rel_max((θ,)) = 1 / sqrt(θ*π/2)
+""" to normalize the momentum distribution first run with norm=1, 
+and then calculate the norm, and use it again to get the correct normalization. 
+"""
+function norm_f_p_rel(f_p_rel, par_f_p, n, p_max)
+  dp = p_max/(n-1) 
+  p = [dp*(i-1) for i in 1:n]
+  F(p) = f_p_rel(p,par_f_p)
+  return (sum(F.(p)) - 0.5*(F(0) + F(p_max)))*dp*2 
+end
 
-f_p(p,(θ,)) = exp(- p^2/θ/2) / sqrt(θ*π/2)
-f_p_max((θ,)) = 1 / sqrt(θ*π/2)
+f_p_rel(p,(θ,norm)) = exp((1 - sqrt(1+p^2))/θ) / sqrt(θ*π*2) / norm 
+f_p_rel_max((θ,norm)) = 1 / sqrt(θ*π*2) / norm 
+
+f_p(p,(θ,)) = exp(- p^2/θ/2) / sqrt(θ*π*2)
+f_p_max((θ,)) = 1 / sqrt(θ*π*2)
 
 """The following routine returns a random velocity distributed on a double Maxwellian distribution function 
 corresponding to two counter-streaming beams. The algorithm used to achieve this is called the rejection method, 
