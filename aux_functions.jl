@@ -588,11 +588,11 @@ end
 
 function plot_energies(Energy_K, Energy_E, t_series, run_name, save_plots)
   E1 = abs(Energy_K[1] + Energy_E[1])
-  plt = plot(t_series, abs.(Energy_K[2:end] .- Energy_K[1]), title = "Energy conservation (order = $(order))", label = "Kinetic Energy"
+  plt = plot(t_series[2:end], abs.(Energy_K[2:end] .- Energy_K[1]), title = "Energy conservation (order = $(order))", label = "Kinetic Energy"
     #, legend = :outertopright
     , legend = :bottomright, ls=:dash)
-    plot!(t_series, abs.(Energy_E[2:end] .- Energy_E[1]), label = "|Electric Energy|", ls=:dot)
-    plot!(t_series, abs.(Energy_K[2:end] + Energy_E[2:end] .- E1) ./ E1
+    plot!(t_series[2:end], abs.(Energy_E[2:end] .- Energy_E[1]), label = "|Electric Energy|", ls=:dot)
+    plot!(t_series[2:end], abs.(Energy_K[2:end] + Energy_E[2:end] .- E1) ./ E1
     , yscale=:log10
     #, xscale=:log10
     , label = "Total Energy / Initial Energy -1 ")
