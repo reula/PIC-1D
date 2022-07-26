@@ -525,7 +525,7 @@ function get_averages_threads(v,par_grid,par_evolv, par_f)
 
   for j in 1:M_g
       (Energy_K[j],Energy_E[j]) = get_energy_rel(v[:,j],(L,N,J))
-      EField_T[j] = sum(v[2N+1:end,j])*dx
+      EField_T[j] = sum(v[2N+1:end,j])
       p_T[j] = sum(v[N+1:2N])*dx
       get_density_threads!(v[:,j], ρ, par_density)
       get_current_rel_threads!(v[:,j], S, par_current)
@@ -536,6 +536,81 @@ function get_averages_threads(v,par_grid,par_evolv, par_f)
   return Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T
 end
 
+
+function get_local_averages_threads(u,par_grid, par_f)
+  
+  (N, L, J, dx, order) = par_grid
+  (θ, nm, κ) = par_f
+
+  TS = zeros(J, nthreads())
+  Tn = zeros(J, nthreads())
+  
+  par_density = (par_grid, Tn)
+  par_current = (par_grid, TS)
+
+  ρ = zeros(J)
+  S = zeros(J)
+  Efield = zeros(J)
+
+  Energy_K, Energy_E = get_energy_rel(u,(L,N,J))
+  Efield = u[2N+1:end]
+  EField_T = sum(u[2N+1:end])*dx
+  p_T = sum(u[N+1:2N])*dx
+  get_density_threads!(u[:], ρ, par_density)
+  get_current_rel_threads!(u[:], S, par_current)
+  Q_T = get_total_charge(ρ,(J, dx)) / L # we divide by L because the density is 1, so the total charge is L, this way we compare with 1.
+  S_T = sum(S)/N/Q_T[j]
+  T = var(u[N+1:2N])
+
+  return ρ, S, Efield, Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T
+end
+
+function load_averages(file_name, tiempo, par_grid, pars_f)
+    ρ, S, Efield, Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T = get_local_averages_threads(u,par_grid, pars_f)
+    jldopen(file_name, "a+") do file
+        file["n_$(tiempo)"] = ρ
+        file["S_$(tiempo)"] = S
+        file["Efield_$(tiempo)"] = Efield
+        file["Energy_E_$(tiempo)"] = Energy_E
+        file["Energy_K_$(tiempo)"] = Energy_K
+        file["EField_T_$(tiempo)"] = EField_T
+        file["p_T_$(tiempo)"] = p_T
+        file["Q_T_$(tiempo)"] = Q_T
+        file["S_T_$(tiempo)"] = S_T
+        file["T_$(tiempo)"] = T
+    end
+end
+
+function retrieve_average_data(data, par_grid, par_evolv)
+  (N, L, J, dx, order) = par_grid
+  (t_i, t_f, M, M_g, dt) = par_evolv
+  v = zeros(2N+J,M_g)
+  n_t = zeros(J,M_g)
+  S_t = zeros(J,M_g)
+  Efield_t = zeros(J,M_g)
+  EField_T = zeros(M_g)
+  Energy_K = zeros(M_g)
+  Energy_E = zeros(M_g)
+  p_T = zeros(M_g)
+  Q_T = zeros(M_g)
+  S_T = zeros(M_g)
+  T = zeros(M_g)
+
+  for j in 1:M_g
+      tiempo = @sprintf("%05d", j)
+      n_t[:,j] = data["n_$(tiempo)"]
+      S_t[:,j] = data["S_$(tiempo)"]
+      Efield_t[:,j] = data["Efield_$(tiempo)"]
+      Energy_K[j] = data["Energy_K_$(tiempo)"]
+      Energy_E[j] = data["Energy_E_$(tiempo)"]
+      EField_T[j] = data["EField_T_$(tiempo)"]
+      p_T[j] = data["p_T_$(tiempo)"]
+      Q_T[j] = data["Q_T_$(tiempo)"]
+      S_T[j] = data["S_T_$(tiempo)"]
+      T[j] = data["T_$(tiempo)"]
+  end
+  return n_t, S_t, Efield_t, (Energy_E,  Energy_K, EField_T, p_T, Q_T, S_T, T)
+end
 
 function retrieve_data(data, par_grid, par_evolv)
   (N, L, J, dx, order) = par_grid
