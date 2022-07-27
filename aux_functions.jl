@@ -559,14 +559,15 @@ function get_local_averages_threads(u,par_grid, par_f)
   get_density_threads!(u[:], ρ, par_density)
   get_current_rel_threads!(u[:], S, par_current)
   Q_T = get_total_charge(ρ,(J, dx)) / L # we divide by L because the density is 1, so the total charge is L, this way we compare with 1.
-  S_T = sum(S)/N/Q_T[j]
+  S_T = sum(S)/N/Q_T
   T = var(u[N+1:2N])
 
   return ρ, S, Efield, Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T
 end
 
-function load_averages(file_name, tiempo, par_grid, pars_f)
+function load_averages(file_name, j, par_grid, pars_f)
     ρ, S, Efield, Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T = get_local_averages_threads(u,par_grid, pars_f)
+    tiempo = @sprintf("%05d", j)
     jldopen(file_name, "a+") do file
         file["n_$(tiempo)"] = ρ
         file["S_$(tiempo)"] = S
@@ -581,10 +582,10 @@ function load_averages(file_name, tiempo, par_grid, pars_f)
     end
 end
 
-function retrieve_average_data(data, par_grid, par_evolv)
+function retrieve_average_data(data, par_grid, par_evolv; M_last=nothing)
   (N, L, J, dx, order) = par_grid
   (t_i, t_f, M, M_g, dt) = par_evolv
-  v = zeros(2N+J,M_g)
+  #v = zeros(2N+J,M_g)
   n_t = zeros(J,M_g)
   S_t = zeros(J,M_g)
   Efield_t = zeros(J,M_g)
@@ -595,7 +596,9 @@ function retrieve_average_data(data, par_grid, par_evolv)
   Q_T = zeros(M_g)
   S_T = zeros(M_g)
   T = zeros(M_g)
-
+  if M_last !== nothing # if we gave some values, then use it.
+    M_g = M_last
+  end
   for j in 1:M_g
       tiempo = @sprintf("%05d", j)
       n_t[:,j] = data["n_$(tiempo)"]
@@ -677,28 +680,28 @@ function plot_energies(Energy_K, Energy_E, t_series, run_name, save_plots)
   return plt
 end
 
-function energy_fit(t_series, Energy_E, pe1, pe2, run_name, save_plots; yscale=:identity)
+function energy_fit(t_series, Energy_E, pe1, pe2, N_i, N_f, run_name, save_plots; yscale=:identity)
   @. model_e1(x,p) = p[1] + p[2]*cos(p[3]*x + p[4])*exp(-p[5]*x)
   @. model_e2(x,p) = p[1] + p[2]*(cos(p[3]*x + p[4])^2-p[6])*exp(-p[5]*x)
   #pe1 = [1.0; 1; 2; 2; 0.002]
   #pe2 = [0.0001; -0.0001; 1; 0; 0.002; 0.5]
 
-  fit_energy_1 = curve_fit(model_e1, t_series, Energy_E, pe1);
-  fit_energy_2 = curve_fit(model_e2, t_series, Energy_E, pe2);
+  fit_energy_1 = curve_fit(model_e1, t_series[N_i:N_f], Energy_E[N_i:N_f], pe1);
+  fit_energy_2 = curve_fit(model_e2, t_series[N_i:N_f], Energy_E[N_i:N_f], pe2);
 
-  plt = Plots.scatter(t_series,Energy_E
+  plt = Plots.scatter(t_series[N_i:N_f],Energy_E[N_i:N_f]
   , markersize=1
   , title = "Electric Energy decay"
   , label= "Electric Energy"
   , yscale=yscale 
   )
 
-  plot!(t_series,model_e1(t_series,fit_energy_1.param), ls=:dash
+  plot!(t_series[N_i:N_f],model_e1(t_series[N_i:N_f],fit_energy_1.param), ls=:dash
   , markersize = 0.2
   #, xlims=(00,100)
   , label="Fit"
   )
-  plot!(t_series,model_e2(t_series,fit_energy_2.param), ls=:dash
+  plot!(t_series[N_i:N_f],model_e2(t_series[N_i:N_f],fit_energy_2.param), ls=:dash
   , markersize = 0.2
   #, xlims=(0,100)
   , label="Fit"
@@ -712,7 +715,7 @@ end
 function temperature_fit(t_series, T, p_tl001, N_i, N_f, run_name, save_plots)
   @. model_tl001(x,p) = p[1] + p[2]*cos(p[3]*x + p[4])*exp(-p[5]*x) + p[6]*cos(p[7]*x + p[8])*exp(-p[9]*x)
   #p_tl001 = [0.001; 3; 2; 0; 0.1; 0; 1.; 0; 0]
-  fit_tl001 = curve_fit(model_tl001, t_series[1:end], T[1:end], p_tl001)
+  fit_tl001 = curve_fit(model_tl001, t_series[N_i:N_f], T[N_i:N_f], p_tl001)
   #@. model_tl001_s(x,p) = p[1] + p[2]*cos(p[3]*x + p[4])*exp(-p[5]*x)
   #p_tl001_s = [0.001; 3; 2; 0; 0.0]
   #fit_tl001_s = curve_fit(model_tl001_s, t_series[1:end], T[1:end], p_tl001_s)
