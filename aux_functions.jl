@@ -226,7 +226,13 @@ function get_current_rel_threads!(u, S, p)
   S[:]
 end
 
+function get_temperature(u,N)
+  return var(u[N+1:2N])
+end
 
+function get_temperature_rel(u,N)
+  return var(p2v.(u[N+1:2N]))
+end
 
 """
 Calculates the RHS of the evolution equation. 
@@ -525,7 +531,7 @@ function get_averages_threads(v,par_grid,par_evolv, par_f)
 
   for j in 1:M_g
       (Energy_K[j],Energy_E[j]) = get_energy_rel(v[:,j],(L,N,J))
-      EField_T[j] = sum(v[2N+1:end,j])*dx
+      EField_T[j] = sum(v[2N+1:end,j])
       p_T[j] = sum(v[N+1:2N])*dx
       get_density_threads!(v[:,j], ρ, par_density)
       get_current_rel_threads!(v[:,j], S, par_current)
@@ -536,6 +542,85 @@ function get_averages_threads(v,par_grid,par_evolv, par_f)
   return Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T
 end
 
+
+function get_local_averages_threads(u,par_grid, par_f)
+  
+  (N, L, J, dx, order) = par_grid
+  (θ, nm, κ) = par_f
+
+  TS = zeros(J, nthreads())
+  Tn = zeros(J, nthreads())
+  
+  par_density = (par_grid, Tn)
+  par_current = (par_grid, TS)
+
+  ρ = zeros(J)
+  S = zeros(J)
+  Efield = zeros(J)
+
+  Energy_K, Energy_E = get_energy_rel(u,(L,N,J))
+  Efield = u[2N+1:end]
+  EField_T = sum(u[2N+1:end])*dx
+  p_T = sum(u[N+1:2N])*dx
+  get_density_threads!(u[:], ρ, par_density)
+  get_current_rel_threads!(u[:], S, par_current)
+  Q_T = get_total_charge(ρ,(J, dx)) / L # we divide by L because the density is 1, so the total charge is L, this way we compare with 1.
+  S_T = sum(S)/N/Q_T
+  #T = var(u[N+1:2N])
+  T = get_temperature_rel(u,N)
+
+  return ρ, S, Efield, Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T
+end
+
+function load_averages(file_name, j, par_grid, pars_f)
+    ρ, S, Efield, Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T = get_local_averages_threads(u,par_grid, pars_f)
+    tiempo = @sprintf("%05d", j)
+    jldopen(file_name, "a+") do file
+        file["n_$(tiempo)"] = ρ
+        file["S_$(tiempo)"] = S
+        file["Efield_$(tiempo)"] = Efield
+        file["Energy_E_$(tiempo)"] = Energy_E
+        file["Energy_K_$(tiempo)"] = Energy_K
+        file["EField_T_$(tiempo)"] = EField_T
+        file["p_T_$(tiempo)"] = p_T
+        file["Q_T_$(tiempo)"] = Q_T
+        file["S_T_$(tiempo)"] = S_T
+        file["T_$(tiempo)"] = T
+    end
+end
+
+function retrieve_average_data(data, par_grid, par_evolv; M_last=nothing)
+  (N, L, J, dx, order) = par_grid
+  (t_i, t_f, M, M_g, dt) = par_evolv
+  #v = zeros(2N+J,M_g)
+  n_t = zeros(J,M_g)
+  S_t = zeros(J,M_g)
+  Efield_t = zeros(J,M_g)
+  EField_T = zeros(M_g)
+  Energy_K = zeros(M_g)
+  Energy_E = zeros(M_g)
+  p_T = zeros(M_g)
+  Q_T = zeros(M_g)
+  S_T = zeros(M_g)
+  T = zeros(M_g)
+  if M_last !== nothing # if we gave some values, then use it.
+    M_g = M_last
+  end
+  for j in 1:M_g
+      tiempo = @sprintf("%05d", j)
+      n_t[:,j] = data["n_$(tiempo)"]
+      S_t[:,j] = data["S_$(tiempo)"]
+      Efield_t[:,j] = data["Efield_$(tiempo)"]
+      Energy_K[j] = data["Energy_K_$(tiempo)"]
+      Energy_E[j] = data["Energy_E_$(tiempo)"]
+      EField_T[j] = data["EField_T_$(tiempo)"]
+      p_T[j] = data["p_T_$(tiempo)"]
+      Q_T[j] = data["Q_T_$(tiempo)"]
+      S_T[j] = data["S_T_$(tiempo)"]
+      T[j] = data["T_$(tiempo)"]
+  end
+  return n_t, S_t, Efield_t, (Energy_E,  Energy_K, EField_T, p_T, Q_T, S_T, T)
+end
 
 function retrieve_data(data, par_grid, par_evolv)
   (N, L, J, dx, order) = par_grid
@@ -588,42 +673,42 @@ end
 
 function plot_energies(Energy_K, Energy_E, t_series, run_name, save_plots)
   E1 = abs(Energy_K[1] + Energy_E[1])
-  plt = plot(t_series, abs.(Energy_K[2:end] .- Energy_K[1]), title = "Energy conservation (order = $(order))", label = "Kinetic Energy"
+  plt = plot(t_series[2:end], abs.(Energy_K[2:end] .- Energy_K[1]), title = "Energy conservation (order = $(order))", label = "Kinetic Energy"
     #, legend = :outertopright
     , legend = :bottomright, ls=:dash)
-    plot!(t_series, abs.(Energy_E[2:end] .- Energy_E[1]), label = "|Electric Energy|", ls=:dot)
-    plot!(t_series, abs.(Energy_K[2:end] + Energy_E[2:end] .- E1) ./ E1
+    plot!(t_series[2:end], abs.(Energy_E[2:end] .- Energy_E[1]), label = "|Electric Energy|", ls=:dot)
+    plot!(t_series[2:end], abs.(Energy_K[2:end] + Energy_E[2:end] .- E1) ./ E1
     , yscale=:log10
     #, xscale=:log10
     , label = "Total Energy / Initial Energy -1 ")
     if save_plots
-    png("Images/" * run_name * "energy_conservation")
+    png("Images/" * run_name * "_energy_conservation")
     end
   return plt
 end
 
-function energy_fit(t_series, Energy_E, pe1, pe2, run_name, save_plots; yscale=:identity)
-  @. model_e1(x,p) = p[1] + p[2]*cos(p[3]*x + p[4])*exp(-p[5]*x)
+function energy_fit(t_series, Energy_E, pe1, pe2, N_i, N_f, run_name, save_plots; yscale=:identity)
+  @. model_e1(x,p) = p[1] + p[2]*cos(p[3]*x + p[4])*exp(-p[5]*x) + p[6]*cos(p[7]*x + p[8])*exp(-p[9]*x)
   @. model_e2(x,p) = p[1] + p[2]*(cos(p[3]*x + p[4])^2-p[6])*exp(-p[5]*x)
-  #pe1 = [1.0; 1; 2; 2; 0.002]
+  #pe1 = [1.0; 1; 2; 2; 0.002; 0.; 0; 0; 0.0]
   #pe2 = [0.0001; -0.0001; 1; 0; 0.002; 0.5]
 
-  fit_energy_1 = curve_fit(model_e1, t_series, Energy_E, pe1);
-  fit_energy_2 = curve_fit(model_e2, t_series, Energy_E, pe2);
+  fit_energy_1 = curve_fit(model_e1, t_series[N_i:N_f], Energy_E[N_i:N_f], pe1);
+  fit_energy_2 = curve_fit(model_e2, t_series[N_i:N_f], Energy_E[N_i:N_f], pe2);
 
-  plt = Plots.scatter(t_series,Energy_E
+  plt = Plots.scatter(t_series[N_i:N_f],Energy_E[N_i:N_f]
   , markersize=1
   , title = "Electric Energy decay"
   , label= "Electric Energy"
   , yscale=yscale 
   )
 
-  plot!(t_series,model_e1(t_series,fit_energy_1.param), ls=:dash
+  plot!(t_series[N_i:N_f],model_e1(t_series[N_i:N_f],fit_energy_1.param), ls=:dash
   , markersize = 0.2
   #, xlims=(00,100)
   , label="Fit"
   )
-  plot!(t_series,model_e2(t_series,fit_energy_2.param), ls=:dash
+  plot!(t_series[N_i:N_f],model_e2(t_series[N_i:N_f],fit_energy_2.param), ls=:dash
   , markersize = 0.2
   #, xlims=(0,100)
   , label="Fit"
@@ -637,12 +722,13 @@ end
 function temperature_fit(t_series, T, p_tl001, N_i, N_f, run_name, save_plots)
   @. model_tl001(x,p) = p[1] + p[2]*cos(p[3]*x + p[4])*exp(-p[5]*x) + p[6]*cos(p[7]*x + p[8])*exp(-p[9]*x)
   #p_tl001 = [0.001; 3; 2; 0; 0.1; 0; 1.; 0; 0]
-  fit_tl001 = curve_fit(model_tl001, t_series[1:end], T[1:end], p_tl001)
+  fit_tl001 = curve_fit(model_tl001, t_series[N_i:N_f], T[N_i:N_f], p_tl001)
   #@. model_tl001_s(x,p) = p[1] + p[2]*cos(p[3]*x + p[4])*exp(-p[5]*x)
   #p_tl001_s = [0.001; 3; 2; 0; 0.0]
   #fit_tl001_s = curve_fit(model_tl001_s, t_series[1:end], T[1:end], p_tl001_s)
   plt = Plots.scatter(t_series[N_i:N_f], T[N_i:N_f], ms = 1)
   plot!(t_series[N_i:N_f], model_tl001(t_series[N_i:N_f],fit_tl001.param))
+  
   if save_plots
       png("Images/" * run_name * "temperature_fit")
   end
