@@ -226,7 +226,13 @@ function get_current_rel_threads!(u, S, p)
   S[:]
 end
 
+function get_temperature(u,N)
+  return var(u[N+1:2N])
+end
 
+function get_temperature_rel(u,N)
+  return var(p2v.(u[N+1:2N]))
+end
 
 """
 Calculates the RHS of the evolution equation. 
@@ -560,7 +566,8 @@ function get_local_averages_threads(u,par_grid, par_f)
   get_current_rel_threads!(u[:], S, par_current)
   Q_T = get_total_charge(ρ,(J, dx)) / L # we divide by L because the density is 1, so the total charge is L, this way we compare with 1.
   S_T = sum(S)/N/Q_T
-  T = var(u[N+1:2N])
+  #T = var(u[N+1:2N])
+  T = get_temperature_rel(u,N)
 
   return ρ, S, Efield, Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T
 end
@@ -675,15 +682,15 @@ function plot_energies(Energy_K, Energy_E, t_series, run_name, save_plots)
     #, xscale=:log10
     , label = "Total Energy / Initial Energy -1 ")
     if save_plots
-    png("Images/" * run_name * "energy_conservation")
+    png("Images/" * run_name * "_energy_conservation")
     end
   return plt
 end
 
 function energy_fit(t_series, Energy_E, pe1, pe2, N_i, N_f, run_name, save_plots; yscale=:identity)
-  @. model_e1(x,p) = p[1] + p[2]*cos(p[3]*x + p[4])*exp(-p[5]*x)
+  @. model_e1(x,p) = p[1] + p[2]*cos(p[3]*x + p[4])*exp(-p[5]*x) + p[6]*cos(p[7]*x + p[8])*exp(-p[9]*x)
   @. model_e2(x,p) = p[1] + p[2]*(cos(p[3]*x + p[4])^2-p[6])*exp(-p[5]*x)
-  #pe1 = [1.0; 1; 2; 2; 0.002]
+  #pe1 = [1.0; 1; 2; 2; 0.002; 0.; 0; 0; 0.0]
   #pe2 = [0.0001; -0.0001; 1; 0; 0.002; 0.5]
 
   fit_energy_1 = curve_fit(model_e1, t_series[N_i:N_f], Energy_E[N_i:N_f], pe1);
@@ -721,6 +728,7 @@ function temperature_fit(t_series, T, p_tl001, N_i, N_f, run_name, save_plots)
   #fit_tl001_s = curve_fit(model_tl001_s, t_series[1:end], T[1:end], p_tl001_s)
   plt = Plots.scatter(t_series[N_i:N_f], T[N_i:N_f], ms = 1)
   plot!(t_series[N_i:N_f], model_tl001(t_series[N_i:N_f],fit_tl001.param))
+  
   if save_plots
       png("Images/" * run_name * "temperature_fit")
   end
