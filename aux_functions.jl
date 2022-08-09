@@ -656,7 +656,7 @@ end
 
 function plot_averages(averages, t_series, N, run_name, save_plots)
   Energy_K, Energy_E, EField_T, p_T, Q_T, S_T = averages
-  E1 = abs(Energy_K[1] + Energy_E[1])
+  E1 = Energy_K[1] + Energy_E[1]
   plt = plot(layout=(2,2), size=(800,600))
   plot!(subplot=1, t_series, Energy_K[1:end] .- Energy_K[1], label="Energy_K")
   plot!(subplot=1, t_series, Energy_E[1:end] .- Energy_E[1], label="Energy_E")
@@ -672,7 +672,7 @@ function plot_averages(averages, t_series, N, run_name, save_plots)
 end
 
 function plot_energies(Energy_K, Energy_E, t_series, run_name, save_plots)
-  E1 = abs(Energy_K[1] + Energy_E[1])
+  E1 = Energy_K[1] + Energy_E[1]
   plt = plot(t_series[2:end], abs.(Energy_K[2:end] .- Energy_K[1]), title = "Energy conservation (order = $(order))", label = "Kinetic Energy"
     #, legend = :outertopright
     , legend = :bottomright, ls=:dash)
@@ -687,14 +687,15 @@ function plot_energies(Energy_K, Energy_E, t_series, run_name, save_plots)
   return plt
 end
 
-function energy_fit(t_series, Energy_E, pe1, pe2, N_i, N_f, run_name, save_plots; yscale=:identity)
-  @. model_e1(x,p) = p[1] + p[2]*cos(p[3]*x + p[4])*exp(-p[5]*x) + p[6]*cos(p[7]*x + p[8])*exp(-p[9]*x)
-  @. model_e2(x,p) = p[1] + p[2]*(cos(p[3]*x + p[4])^2-p[6])*exp(-p[5]*x)
-  #pe1 = [1.0; 1; 2; 2; 0.002; 0.; 0; 0; 0.0]
-  #pe2 = [0.0001; -0.0001; 1; 0; 0.002; 0.5]
-
-  fit_energy_1 = curve_fit(model_e1, t_series[N_i:N_f], Energy_E[N_i:N_f], pe1);
-  fit_energy_2 = curve_fit(model_e2, t_series[N_i:N_f], Energy_E[N_i:N_f], pe2);
+"""
+several fits for the energy:
+  The first one is a couple of sinusoidal functions. 
+  The second one is a square fit.
+  The third one is a more ellaborated square fit.
+  """
+function energy_fit(t_series, Energy_E, model_e, pe, N_i, N_f, run_name, save_plots; yscale=:identity)
+  
+  fit_energy = curve_fit(model_e, t_series[N_i:N_f], Energy_E[N_i:N_f], pe);
 
   plt = Plots.scatter(t_series[N_i:N_f],Energy_E[N_i:N_f]
   , markersize=1
@@ -703,20 +704,16 @@ function energy_fit(t_series, Energy_E, pe1, pe2, N_i, N_f, run_name, save_plots
   , yscale=yscale 
   )
 
-  plot!(t_series[N_i:N_f],model_e1(t_series[N_i:N_f],fit_energy_1.param), ls=:dash
+  plot!(t_series[N_i:N_f], model_e(t_series[N_i:N_f],fit_energy.param), ls=:dash
   , markersize = 0.2
   #, xlims=(00,100)
   , label="Fit"
   )
-  plot!(t_series[N_i:N_f],model_e2(t_series[N_i:N_f],fit_energy_2.param), ls=:dash
-  , markersize = 0.2
-  #, xlims=(0,100)
-  , label="Fit"
-  )
+  
   if save_plots
       png("Images/" * run_name * "_energy_fit")
   end
-  return fit_energy_1.param, fit_energy_2.param, plt 
+  return fit_energy, plt 
 end
 
 function temperature_fit(t_series, T, p_tl001, N_i, N_f, run_name, save_plots)
@@ -730,7 +727,7 @@ function temperature_fit(t_series, T, p_tl001, N_i, N_f, run_name, save_plots)
   plot!(t_series[N_i:N_f], model_tl001(t_series[N_i:N_f],fit_tl001.param))
   
   if save_plots
-      png("Images/" * run_name * "temperature_fit")
+      png("Images/" * run_name * "_temperature_fit")
   end
   return fit_tl001, plt
 end
