@@ -382,6 +382,14 @@ function W_alt(order::Int,y::Float64)
     error("order = $order not yet implemented ")
   end
 end
+
+"""
+Sharp functions are W functions of an order less
+"""
+function S(order::Int,y::Float64) 
+  function W(order - 1,y)
+end
+
 """
 This are interpolation functions for getting the Electric field correct.
 According the SHARP the second is better. Since it keeps momentum conservation.
@@ -390,7 +398,7 @@ function Interpolate_1(order, vector, x, J, L)
   j, y = get_index_and_y(x,J,L)
   vi = 0.0
     for l in (-order+1):order 
-      vi += vector[mod1(j+l,J)] * W(order, -y + l)
+      vi += vector[mod1(j+l,J)] * S(order, -y + l)
     end
   return vi
 end
@@ -399,7 +407,7 @@ function Interpolate_2(order, vector, x, J, L)
   j, y = get_index_and_y(x,J,L)
   vi = 0.0
     for l in (-order):order 
-      vi += (vector[mod1(j+l,J)] + vector[mod1(j+l+1,J)]) * W(order, -y + 1/2 + l) / 2
+      vi += (vector[mod1(j+l,J)] + vector[mod1(j+l+1,J)]) * S(order, -y + 1/2 + l) / 2
     end
   return vi
 end
