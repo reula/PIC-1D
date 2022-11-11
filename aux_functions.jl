@@ -386,8 +386,8 @@ end
 """
 Sharp functions are W functions of an order less
 """
-function S(order::Int,y::Float64) 
-  function W(order - 1,y)
+@inline function Shape(order::Int,y::Float64) 
+  return W(order - 1,y)
 end
 
 """
@@ -398,7 +398,7 @@ function Interpolate_1(order, vector, x, J, L)
   j, y = get_index_and_y(x,J,L)
   vi = 0.0
     for l in (-order+1):order 
-      vi += vector[mod1(j+l,J)] * S(order, -y + l)
+      vi += vector[mod1(j+l,J)] * Shape(order, -y + l)
     end
   return vi
 end
@@ -407,7 +407,7 @@ function Interpolate_2(order, vector, x, J, L)
   j, y = get_index_and_y(x,J,L)
   vi = 0.0
     for l in (-order):order 
-      vi += (vector[mod1(j+l,J)] + vector[mod1(j+l+1,J)]) * S(order, -y + 1/2 + l) / 2
+      vi += (vector[mod1(j+l,J)] + vector[mod1(j+l+1,J)]) * Shape(order, -y + 1/2 + l) / 2
     end
   return vi
 end
@@ -418,24 +418,24 @@ function Interpolate_per(order, vector, x, J, L)
   j, y = get_index_and_y(x,J,L)
   vi = 0.0
     for l in (-order):-j 
-      vi += vector[J+j+l] * W(order, -y + 1/2 + l)
+      vi += vector[J+j+l] * Shape(order, -y + 1/2 + l)
     end
     for l in  max(-order,-j+1):min(order,J-j)
-      vi += vector[j+l] * W(order, -y + 1/2 + l)
+      vi += vector[j+l] * Shape(order, -y + 1/2 + l)
     end
     for l in J-j+1:order
-      vi += vector[j+l] * W(order, -y + 1/2 + l)
+      vi += vector[j+l] * Shape(order, -y + 1/2 + l)
     end
     # now we increase j by 1
     j += 1
     for l in (-order):-j 
-      vi += vector[J+j+l] * W(order, -y + 1/2 + l)
+      vi += vector[J+j+l] * Shape(order, -y + 1/2 + l)
     end
     for l in  max(-order,-j+1):min(order,J-j)
-      vi += vector[j+l] * W(order, -y + 1/2 + l)
+      vi += vector[j+l] * Shape(order, -y + 1/2 + l)
     end
     for l in J-j+1:order
-      vi += vector[j+l] * W(order, -y + 1/2 + l)
+      vi += vector[j+l] * Shape(order, -y + 1/2 + l)
     end
   return vi / 2
 end
