@@ -125,7 +125,7 @@ function get_density!(u, n, par_grid)
   for i in 1:N
     @inbounds j, y = get_index_and_y(r[i],J,L)
     for l in (-order):order 
-      @inbounds n[mod1(j + l, J)] += W(order, -y + l) / dx / n0;
+      @inbounds n[mod1(j + l, J)] += Shape(order, -y + l) / dx / n0;
     end
   end
   return n[:] # return rho directly (we need to subtract 1 in cases where we assume positive particles, but this is done elsewhere.)
@@ -143,13 +143,13 @@ function get_density_threads!(u, n, p)
   @threads for i in 1:N
     @inbounds j[threadid()], y[threadid()] = get_index_and_y(u[i], J, L)
     for l in (-order):-j[threadid()]
-      @inbounds Tn[J + j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) 
+      @inbounds Tn[J + j[threadid()] + l, threadid()] += Shape(order, -y[threadid()] + l) 
     end
     for l in max(-order,-j[threadid()]+1):min(order,J-j[threadid()])
-      @inbounds Tn[j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) 
+      @inbounds Tn[j[threadid()] + l, threadid()] += Shape(order, -y[threadid()] + l) 
     end
     for l in J-j[threadid()]+1:order
-      @inbounds Tn[j[threadid()] - J + l, threadid()] += W(order, -y[threadid()] + l) 
+      @inbounds Tn[j[threadid()] - J + l, threadid()] += Shape(order, -y[threadid()] + l) 
     end
   end
   n .= zeros(Float64)
@@ -185,7 +185,7 @@ function get_current_rel!(u, S, par_grid)
     @inbounds j, y = get_index_and_y(r[i],J,L)
     @inbounds v = p2v(p[i]) / dx / n0
     for l in (-order):order 
-      @inbounds S[mod1(j + l, J)] += W(order, -y + l) * v;
+      @inbounds S[mod1(j + l, J)] += Shape(order, -y + l) * v;
     end
   end
   return S[:] # allready normalized with n0
@@ -203,17 +203,17 @@ function get_current_rel_threads!(u, S, p)
     @inbounds j[threadid()], y[threadid()] = get_index_and_y(u[i], J, L)
     @inbounds v = p2v(u[N+i]) / dx / n0
     for l in (-order):-j[threadid()]
-      @inbounds TS[J + j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * v
+      @inbounds TS[J + j[threadid()] + l, threadid()] += Shape(order, -y[threadid()] + l) * v
     end
     for l in max(-order,-j[threadid()]+1):min(order,J-j[threadid()])
-      @inbounds TS[j[threadid()] + l, threadid()] += W(order, -y[threadid()] + l) * v
+      @inbounds TS[j[threadid()] + l, threadid()] += Shape(order, -y[threadid()] + l) * v
     end
     for l in J-j[threadid()]+1:order
-      @inbounds TS[j[threadid()] - J + l, threadid()] += W(order, -y[threadid()] + l) * v
+      @inbounds TS[j[threadid()] - J + l, threadid()] += Shape(order, -y[threadid()] + l) * v
     end
     #= 
     for l in (-order):order
-       @inbounds TS[mod1(j + l, J), threadid()] += W(order, -y + l) * v
+       @inbounds TS[mod1(j + l, J), threadid()] += Shape(order, -y + l) * v
     end
     =#
   end
@@ -398,7 +398,7 @@ function Interpolate_1(order, vector, x, J, L)
   j, y = get_index_and_y(x,J,L)
   vi = 0.0
     for l in (-order+1):order 
-      vi += vector[mod1(j+l,J)] * Shape(order, -y + l)
+      vi += vector[mod1(j+l,J)] * W(order, -y + l)
     end
   return vi
 end
@@ -407,7 +407,7 @@ function Interpolate_2(order, vector, x, J, L)
   j, y = get_index_and_y(x,J,L)
   vi = 0.0
     for l in (-order):order 
-      vi += (vector[mod1(j+l,J)] + vector[mod1(j+l+1,J)]) * Shape(order, -y + 1/2 + l) / 2
+      vi += (vector[mod1(j+l,J)] + vector[mod1(j+l+1,J)]) * W(order, -y + 1/2 + l) / 2
     end
   return vi
 end
@@ -418,24 +418,24 @@ function Interpolate_per(order, vector, x, J, L)
   j, y = get_index_and_y(x,J,L)
   vi = 0.0
     for l in (-order):-j 
-      vi += vector[J+j+l] * Shape(order, -y + 1/2 + l)
+      vi += vector[J+j+l] * W(order, -y + 1/2 + l)
     end
     for l in  max(-order,-j+1):min(order,J-j)
-      vi += vector[j+l] * Shape(order, -y + 1/2 + l)
+      vi += vector[j+l] * W(order, -y + 1/2 + l)
     end
     for l in J-j+1:order
-      vi += vector[j+l] * Shape(order, -y + 1/2 + l)
+      vi += vector[j+l] * W(order, -y + 1/2 + l)
     end
     # now we increase j by 1
     j += 1
     for l in (-order):-j 
-      vi += vector[J+j+l] * Shape(order, -y + 1/2 + l)
+      vi += vector[J+j+l] * W(order, -y + 1/2 + l)
     end
     for l in  max(-order,-j+1):min(order,J-j)
-      vi += vector[j+l] * Shape(order, -y + 1/2 + l)
+      vi += vector[j+l] * W(order, -y + 1/2 + l)
     end
     for l in J-j+1:order
-      vi += vector[j+l] * Shape(order, -y + 1/2 + l)
+      vi += vector[j+l] * W(order, -y + 1/2 + l)
     end
   return vi / 2
 end
