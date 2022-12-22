@@ -51,6 +51,22 @@ function get_ϕ!(ϕ, ρ, κ)
 end
 
 """
+get_E_direct!(E,ρ_m)
+computes the Electric field from the constraint equation div E = ρ 
+using E_k = E_{k-1} + \rho_{k-1/2}*dx
+then substracts a constant field so that E_T = 0
+"""
+function get_E_direct!(E,ρ_m,par_grid)
+  N, L, J, dx, order = par_grid
+  E[1] = 0.0
+  E_T = 0.0
+  for j in 2:J
+    E[j] = E[j-1] + ρ_m[j-1]*dx
+    E_T = E_T + E[j]
+  end
+  return E .= E .- E_T/J
+end
+"""
 Takes out the mass of the grid function so that the sum is now null
 """
 function filter_constant!(E)
@@ -111,12 +127,15 @@ The energy function from 3-velocity
 γ(v) = 1/sqrt(1 - v^2)
 
 
-"""The routine below evaluates the electron number density on an evenly spaced mesh given the instantaneous electron coordinates.
+"""The routine below evaluates the electron number density on an evenly spaced mesh given the 
+instantaneous electron coordinates.
 
-// Evaluates electron number density n(0:J-1) from 
-// array r(0:N-1) of electron coordinates.
+Evaluates electron number density n(1:J) from 
+array r(1:N) of electron coordinates.
+
+shift can have the values 0 or 1/2 depending whether we want the density at gridpoint or at midpoints.
 """
-function get_density!(u, n, par_grid)
+function get_density!(u, n, par_grid, shift)
   N, L, J, dx, order = par_grid
   n0 = N/L
   r = view(u,1:N)
@@ -124,15 +143,16 @@ function get_density!(u, n, par_grid)
   # Evaluate number density.
   for i in 1:N
     @inbounds j, y = get_index_and_y(r[i],J,L)
+    y += - shift
     for l in (-order):order 
-      @inbounds n[mod1(j + l, J)] += Shape(order, -y + l) / dx / n0;
+      @inbounds n[mod1(j + l, J)] += Shape(order, -y + l) / dx / n0; # the dx here is from the different definition from the paper
     end
   end
   return n[:] # return rho directly (we need to subtract 1 in cases where we assume positive particles, but this is done elsewhere.)
 end
 
 
-function get_density_threads!(u, n, p)
+function get_density_threads!(u, n, p, shift)
   par_grid, Tn = p
   N, L, J, dx, order = par_grid
   j = fill(Int64(1),nthreads()) 
@@ -142,6 +162,7 @@ function get_density_threads!(u, n, p)
   # Evaluate number density.
   @threads for i in 1:N
     @inbounds j[threadid()], y[threadid()] = get_index_and_y(u[i], J, L)
+    y[threadid()] += - shift
     for l in (-order):-j[threadid()]
       @inbounds Tn[J + j[threadid()] + l, threadid()] += Shape(order, -y[threadid()] + l) 
     end
@@ -155,11 +176,12 @@ function get_density_threads!(u, n, p)
   n .= zeros(Float64)
   @threads for i in 1:J
     for t in 1:nthreads()
-      @inbounds n[i] += Tn[i, t]/dx/n0
+      @inbounds n[i] += Tn[i, t]/dx/n0 # the dx here is from the different definition from the paper
     end
   end
   return n[:]
 end
+
 
 function get_total_charge(ρ,par)
   J, dx = par
@@ -183,7 +205,7 @@ function get_current_rel!(u, S, par_grid)
   n0 = N/L
   for i in 1:N
     @inbounds j, y = get_index_and_y(r[i],J,L)
-    @inbounds v = p2v(p[i]) / dx / n0
+    @inbounds v = p2v(p[i]) / dx / n0 # the dx here is from the different definition from the paper
     for l in (-order):order 
       @inbounds S[mod1(j + l, J)] += Shape(order, -y + l) * v;
     end
@@ -201,7 +223,7 @@ function get_current_rel_threads!(u, S, p)
   n0 = N/L
   @threads for i in 1:N
     @inbounds j[threadid()], y[threadid()] = get_index_and_y(u[i], J, L)
-    @inbounds v = p2v(u[N+i]) / dx / n0
+    @inbounds v = p2v(u[N+i]) / dx / n0 # the dx here is from the different definition from the paper
     for l in (-order):-j[threadid()]
       @inbounds TS[J + j[threadid()] + l, threadid()] += Shape(order, -y[threadid()] + l) * v
     end
@@ -336,9 +358,10 @@ function get_energy_rel(u,p)
 end
 
 """
-Derivatives of shape functions
+Derivatives of shape functions.
+They have support for -(order+1)/2 =< y =< (order+1)/2
 """
-function W(order::Int,y::Float64)
+@inline function W(order::Int,y::Float64)
   y = abs(y)
   if order == 0
     return  (y <= 1/2) ? 1 : 0
@@ -384,7 +407,12 @@ function W_alt(order::Int,y::Float64)
 end
 
 """
-Sharp functions are W functions of an order less
+Sharp functions are W functions of an order less. 
+The dx in the Appendix is added when used so as not to carry dx all over. 
+So this definition DIFFERS FROM THE PAPER BY A DX!
+They have support on -order/2 =< y =< order/2
+The orders goes from 1 to 6 (order zero is not defined)
+While the orders of W goes from 0 to 5
 """
 @inline function Shape(order::Int,y::Float64) 
   return W(order - 1,y)
@@ -393,20 +421,23 @@ end
 """
 This are interpolation functions for getting the Electric field correct.
 According the SHARP the second is better. Since it keeps momentum conservation.
+Modified so as to use the smallest stencils.
 """
-function Interpolate_1(order, vector, x, J, L)
+@inline function Interpolate_1(order, vector, x, J, L)
+  stencil = order÷2
   j, y = get_index_and_y(x,J,L)
   vi = 0.0
-    for l in (-order+1):order 
+    for l in (-stencil):(stencil +1)
       vi += vector[mod1(j+l,J)] * W(order, -y + l)
     end
   return vi
 end
 
-function Interpolate_2(order, vector, x, J, L)
+@inline function Interpolate_2(order, vector, x, J, L)
+  stencil = (order+1)÷2
   j, y = get_index_and_y(x,J,L)
   vi = 0.0
-    for l in (-order):order 
+    for l in (-stencil):(stencil) 
       vi += (vector[mod1(j+l,J)] + vector[mod1(j+l+1,J)]) * W(order, -y + 1/2 + l) / 2
     end
   return vi
@@ -414,7 +445,7 @@ end
 """
 Terminado, pero sin probar.
 """
-function Interpolate_per(order, vector, x, J, L)
+@inline function Interpolate_per(order, vector, x, J, L)
   j, y = get_index_and_y(x,J,L)
   vi = 0.0
     for l in (-order):-j 
@@ -738,4 +769,17 @@ function temperature_fit(t_series, T, p_tl001, N_i, N_f, run_name, save_plots)
       png("Images/" * run_name * "_temperature_fit")
   end
   return fit_tl001, plt
+end
+
+""" 
+  get_fourier_E(E,κ,m)
+  Gets the m Fourier mode from the electric field:
+  u the state vector 
+  κ = 2 pi / L
+  m the mode to solve for
+"""
+function get_fourier_E(E, κ, m, J) 
+  #J = length(E)
+  # Fourier transform source term
+  return rfft(E)[m]
 end
