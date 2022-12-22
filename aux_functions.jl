@@ -88,7 +88,7 @@ function compare_electric_field_constraints(v,j,par_grid, par_evolv, run_name, s
   @assert j <= M_g
 
 
-  get_density!(v[:,j], ρ_f, par_grid)
+  get_density!(v[:,j], ρ_f, par_grid,0.0)
   get_ϕ!(ϕ_f, ρ_f .+ 1, 2π/L)
   get_E_from_ϕ!(ϕ_f,E_f,dx)
 
@@ -525,6 +525,7 @@ function get_averages(v,par_grid,par_evolv, par_f)
   Q_T = zeros(M_g)
   S_T = zeros(M_g)
   #E_E = 0.0
+  E_mode = zeros(M_g)
   T = zeros(M_g)
   #P = zeros(J)
   ρ = zeros(J)
@@ -534,13 +535,14 @@ function get_averages(v,par_grid,par_evolv, par_f)
       (Energy_K[j],Energy_E[j]) = get_energy_rel(v[:,j],(L,N,J))
       EField_T[j] = sum(v[2N+1:end,j])*dx
       p_T[j] = sum(v[N+1:2N])*dx
-      get_density!(v[:,j], ρ, par_grid)
+      get_density!(v[:,j], ρ, par_grid,0.0)
       get_current_rel!(v[:,j], S, par_grid)
       Q_T[j] = get_total_charge(ρ,(J, dx))/L # we divide by L because the density is 1, so the total charge is L, this way we compare with 1.
       S_T[j] = sum(S)/N/Q_T[j]
       T[j] = var(v[N+1:2N,j])
+      E_mode = abs(rrft(v[2N+1:end,j])[nm+1])
   end
-  return Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T
+  return Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T, E_mode
 end
 
 function get_averages_threads(v,par_grid,par_evolv, par_f)
@@ -563,6 +565,7 @@ function get_averages_threads(v,par_grid,par_evolv, par_f)
   Q_T = zeros(M_g)
   S_T = zeros(M_g)
   #E_E = 0.0
+  E_mode = zeros(M_g)
   T = zeros(M_g)
   #P = zeros(J)
   ρ = zeros(J)
@@ -572,13 +575,14 @@ function get_averages_threads(v,par_grid,par_evolv, par_f)
       (Energy_K[j],Energy_E[j]) = get_energy_rel(v[:,j],(L,N,J))
       EField_T[j] = sum(v[2N+1:end,j])
       p_T[j] = sum(v[N+1:2N])*dx
-      get_density_threads!(v[:,j], ρ, par_density)
+      get_density_threads!(v[:,j], ρ, par_density,0.0)
       get_current_rel_threads!(v[:,j], S, par_current)
       Q_T[j] = get_total_charge(ρ,(J, dx)) / L # we divide by L because the density is 1, so the total charge is L, this way we compare with 1.
       S_T[j] = sum(S)/N/Q_T[j]
       T[j] = var(v[N+1:2N,j])
+      E_mode = abs(rrft(v[2N+1:end,j])[nm+1])
   end
-  return Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T
+  return Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T, E_mode
 end
 
 
@@ -601,18 +605,19 @@ function get_local_averages_threads(u,par_grid, par_f)
   Efield = u[2N+1:end]
   EField_T = sum(u[2N+1:end])*dx
   p_T = sum(u[N+1:2N])*dx
-  get_density_threads!(u[:], ρ, par_density)
+  get_density_threads!(u[:], ρ, par_density, 0.0)
   get_current_rel_threads!(u[:], S, par_current)
   Q_T = get_total_charge(ρ,(J, dx)) / L # we divide by L because the density is 1, so the total charge is L, this way we compare with 1.
   S_T = sum(S)/N/Q_T
   #T = var(u[N+1:2N])
   T = get_temperature_rel(u,N)
+  E_mode = abs(rrft(u[2N+1:end])[nm+1])
 
-  return ρ, S, Efield, Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T
+  return ρ, S, Efield, Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T, E_mode
 end
 
 function load_averages(file_name, j, par_grid, pars_f)
-    ρ, S, Efield, Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T = get_local_averages_threads(u,par_grid, pars_f)
+    ρ, S, Efield, Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T, E_mode = get_local_averages_threads(u,par_grid, pars_f)
     tiempo = @sprintf("%05d", j)
     jldopen(file_name, "a+") do file
         file["n_$(tiempo)"] = ρ
@@ -625,6 +630,7 @@ function load_averages(file_name, j, par_grid, pars_f)
         file["Q_T_$(tiempo)"] = Q_T
         file["S_T_$(tiempo)"] = S_T
         file["T_$(tiempo)"] = T
+        file["E_mode_$(tiempo)"] = E_mode
     end
 end
 
@@ -638,6 +644,7 @@ function retrieve_average_data(data, par_grid, par_evolv; M_last=nothing)
   EField_T = zeros(M_g)
   Energy_K = zeros(M_g)
   Energy_E = zeros(M_g)
+  E_mode = zeros(M_g)
   p_T = zeros(M_g)
   Q_T = zeros(M_g)
   S_T = zeros(M_g)
@@ -657,8 +664,9 @@ function retrieve_average_data(data, par_grid, par_evolv; M_last=nothing)
       Q_T[j] = data["Q_T_$(tiempo)"]
       S_T[j] = data["S_T_$(tiempo)"]
       T[j] = data["T_$(tiempo)"]
+      E_mode[j] = data["E_mode_$(tiempo)"]
   end
-  return n_t, S_t, Efield_t, (Energy_E,  Energy_K, EField_T, p_T, Q_T, S_T, T)
+  return n_t, S_t, Efield_t, (Energy_E,  Energy_K, EField_T, p_T, Q_T, S_T, T, E_mode)
 end
 
 function retrieve_data(data, par_grid, par_evolv)
@@ -771,15 +779,3 @@ function temperature_fit(t_series, T, p_tl001, N_i, N_f, run_name, save_plots)
   return fit_tl001, plt
 end
 
-""" 
-  get_fourier_E(E,κ,m)
-  Gets the m Fourier mode from the electric field:
-  u the state vector 
-  κ = 2 pi / L
-  m the mode to solve for
-"""
-function get_fourier_E(E, κ, m, J) 
-  #J = length(E)
-  # Fourier transform source term
-  return rfft(E)[m]
-end
