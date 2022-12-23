@@ -540,7 +540,7 @@ function get_averages(v,par_grid,par_evolv, par_f)
       Q_T[j] = get_total_charge(ρ,(J, dx))/L # we divide by L because the density is 1, so the total charge is L, this way we compare with 1.
       S_T[j] = sum(S)/N/Q_T[j]
       T[j] = var(v[N+1:2N,j])
-      E_mode = abs(rrft(v[2N+1:end,j])[nm+1])
+      E_mode = abs(rfft(v[2N+1:end,j])[nm+1])
   end
   return Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T, E_mode
 end
@@ -580,7 +580,7 @@ function get_averages_threads(v,par_grid,par_evolv, par_f)
       Q_T[j] = get_total_charge(ρ,(J, dx)) / L # we divide by L because the density is 1, so the total charge is L, this way we compare with 1.
       S_T[j] = sum(S)/N/Q_T[j]
       T[j] = var(v[N+1:2N,j])
-      E_mode = abs(rrft(v[2N+1:end,j])[nm+1])
+      E_mode = abs(rfft(v[2N+1:end,j])[nm+1])
   end
   return Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T, E_mode
 end
@@ -611,7 +611,7 @@ function get_local_averages_threads(u,par_grid, par_f)
   S_T = sum(S)/N/Q_T
   #T = var(u[N+1:2N])
   T = get_temperature_rel(u,N)
-  E_mode = abs(rrft(u[2N+1:end])[nm+1])
+  E_mode = abs(rfft(u[2N+1:end])[nm+1])
 
   return ρ, S, Efield, Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T, E_mode
 end
