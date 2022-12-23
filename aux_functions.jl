@@ -51,6 +51,22 @@ function get_ϕ!(ϕ, ρ, κ)
 end
 
 """
+get_E_direct!(E,ρ_m)
+computes the Electric field from the constraint equation div E = ρ 
+using E_k = E_{k-1} + \rho_{k-1/2}*dx
+then substracts a constant field so that E_T = 0
+"""
+function get_E_direct!(E,ρ_m,par_grid)
+  N, L, J, dx, order = par_grid
+  E[1] = 0.0
+  E_T = 0.0
+  for j in 2:J
+    E[j] = E[j-1] + ρ_m[j-1]*dx
+    E_T = E_T + E[j]
+  end
+  return E .= E .- E_T/J
+end
+"""
 Takes out the mass of the grid function so that the sum is now null
 """
 function filter_constant!(E)
@@ -72,7 +88,7 @@ function compare_electric_field_constraints(v,j,par_grid, par_evolv, run_name, s
   @assert j <= M_g
 
 
-  get_density!(v[:,j], ρ_f, par_grid)
+  get_density!(v[:,j], ρ_f, par_grid,0.0)
   get_ϕ!(ϕ_f, ρ_f .+ 1, 2π/L)
   get_E_from_ϕ!(ϕ_f,E_f,dx)
 
@@ -111,12 +127,15 @@ The energy function from 3-velocity
 γ(v) = 1/sqrt(1 - v^2)
 
 
-"""The routine below evaluates the electron number density on an evenly spaced mesh given the instantaneous electron coordinates.
+"""The routine below evaluates the electron number density on an evenly spaced mesh given the 
+instantaneous electron coordinates.
 
-// Evaluates electron number density n(0:J-1) from 
-// array r(0:N-1) of electron coordinates.
+Evaluates electron number density n(1:J) from 
+array r(1:N) of electron coordinates.
+
+shift can have the values 0 or 1/2 depending whether we want the density at gridpoint or at midpoints.
 """
-function get_density!(u, n, par_grid)
+function get_density!(u, n, par_grid, shift)
   N, L, J, dx, order = par_grid
   n0 = N/L
   r = view(u,1:N)
@@ -124,15 +143,16 @@ function get_density!(u, n, par_grid)
   # Evaluate number density.
   for i in 1:N
     @inbounds j, y = get_index_and_y(r[i],J,L)
+    y += - shift
     for l in (-order):order 
-      @inbounds n[mod1(j + l, J)] += Shape(order, -y + l) / dx / n0;
+      @inbounds n[mod1(j + l, J)] += Shape(order, -y + l) / dx / n0; # the dx here is from the different definition from the paper
     end
   end
   return n[:] # return rho directly (we need to subtract 1 in cases where we assume positive particles, but this is done elsewhere.)
 end
 
 
-function get_density_threads!(u, n, p)
+function get_density_threads!(u, n, p, shift)
   par_grid, Tn = p
   N, L, J, dx, order = par_grid
   j = fill(Int64(1),nthreads()) 
@@ -142,6 +162,7 @@ function get_density_threads!(u, n, p)
   # Evaluate number density.
   @threads for i in 1:N
     @inbounds j[threadid()], y[threadid()] = get_index_and_y(u[i], J, L)
+    y[threadid()] += - shift
     for l in (-order):-j[threadid()]
       @inbounds Tn[J + j[threadid()] + l, threadid()] += Shape(order, -y[threadid()] + l) 
     end
@@ -155,11 +176,12 @@ function get_density_threads!(u, n, p)
   n .= zeros(Float64)
   @threads for i in 1:J
     for t in 1:nthreads()
-      @inbounds n[i] += Tn[i, t]/dx/n0
+      @inbounds n[i] += Tn[i, t]/dx/n0 # the dx here is from the different definition from the paper
     end
   end
   return n[:]
 end
+
 
 function get_total_charge(ρ,par)
   J, dx = par
@@ -183,7 +205,7 @@ function get_current_rel!(u, S, par_grid)
   n0 = N/L
   for i in 1:N
     @inbounds j, y = get_index_and_y(r[i],J,L)
-    @inbounds v = p2v(p[i]) / dx / n0
+    @inbounds v = p2v(p[i]) / dx / n0 # the dx here is from the different definition from the paper
     for l in (-order):order 
       @inbounds S[mod1(j + l, J)] += Shape(order, -y + l) * v;
     end
@@ -201,7 +223,7 @@ function get_current_rel_threads!(u, S, p)
   n0 = N/L
   @threads for i in 1:N
     @inbounds j[threadid()], y[threadid()] = get_index_and_y(u[i], J, L)
-    @inbounds v = p2v(u[N+i]) / dx / n0
+    @inbounds v = p2v(u[N+i]) / dx / n0 # the dx here is from the different definition from the paper
     for l in (-order):-j[threadid()]
       @inbounds TS[J + j[threadid()] + l, threadid()] += Shape(order, -y[threadid()] + l) * v
     end
@@ -336,9 +358,10 @@ function get_energy_rel(u,p)
 end
 
 """
-Derivatives of shape functions
+Derivatives of shape functions.
+They have support for -(order+1)/2 =< y =< (order+1)/2
 """
-function W(order::Int,y::Float64)
+@inline function W(order::Int,y::Float64)
   y = abs(y)
   if order == 0
     return  (y <= 1/2) ? 1 : 0
@@ -384,7 +407,12 @@ function W_alt(order::Int,y::Float64)
 end
 
 """
-Sharp functions are W functions of an order less
+Sharp functions are W functions of an order less. 
+The dx in the Appendix is added when used so as not to carry dx all over. 
+So this definition DIFFERS FROM THE PAPER BY A DX!
+They have support on -order/2 =< y =< order/2
+The orders goes from 1 to 6 (order zero is not defined)
+While the orders of W goes from 0 to 5
 """
 @inline function Shape(order::Int,y::Float64) 
   return W(order - 1,y)
@@ -393,20 +421,23 @@ end
 """
 This are interpolation functions for getting the Electric field correct.
 According the SHARP the second is better. Since it keeps momentum conservation.
+Modified so as to use the smallest stencils.
 """
-function Interpolate_1(order, vector, x, J, L)
+@inline function Interpolate_1(order, vector, x, J, L)
+  stencil = order÷2
   j, y = get_index_and_y(x,J,L)
   vi = 0.0
-    for l in (-order+1):order 
+    for l in (-stencil):(stencil +1)
       vi += vector[mod1(j+l,J)] * W(order, -y + l)
     end
   return vi
 end
 
-function Interpolate_2(order, vector, x, J, L)
+@inline function Interpolate_2(order, vector, x, J, L)
+  stencil = (order+1)÷2
   j, y = get_index_and_y(x,J,L)
   vi = 0.0
-    for l in (-order):order 
+    for l in (-stencil):(stencil) 
       vi += (vector[mod1(j+l,J)] + vector[mod1(j+l+1,J)]) * W(order, -y + 1/2 + l) / 2
     end
   return vi
@@ -414,7 +445,7 @@ end
 """
 Terminado, pero sin probar.
 """
-function Interpolate_per(order, vector, x, J, L)
+@inline function Interpolate_per(order, vector, x, J, L)
   j, y = get_index_and_y(x,J,L)
   vi = 0.0
     for l in (-order):-j 
@@ -494,6 +525,7 @@ function get_averages(v,par_grid,par_evolv, par_f)
   Q_T = zeros(M_g)
   S_T = zeros(M_g)
   #E_E = 0.0
+  E_mode = zeros(M_g)
   T = zeros(M_g)
   #P = zeros(J)
   ρ = zeros(J)
@@ -503,13 +535,14 @@ function get_averages(v,par_grid,par_evolv, par_f)
       (Energy_K[j],Energy_E[j]) = get_energy_rel(v[:,j],(L,N,J))
       EField_T[j] = sum(v[2N+1:end,j])*dx
       p_T[j] = sum(v[N+1:2N])*dx
-      get_density!(v[:,j], ρ, par_grid)
+      get_density!(v[:,j], ρ, par_grid,0.0)
       get_current_rel!(v[:,j], S, par_grid)
       Q_T[j] = get_total_charge(ρ,(J, dx))/L # we divide by L because the density is 1, so the total charge is L, this way we compare with 1.
       S_T[j] = sum(S)/N/Q_T[j]
       T[j] = var(v[N+1:2N,j])
+      E_mode = abs(rfft(v[2N+1:end,j])[nm+1])
   end
-  return Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T
+  return Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T, E_mode
 end
 
 function get_averages_threads(v,par_grid,par_evolv, par_f)
@@ -532,6 +565,7 @@ function get_averages_threads(v,par_grid,par_evolv, par_f)
   Q_T = zeros(M_g)
   S_T = zeros(M_g)
   #E_E = 0.0
+  E_mode = zeros(M_g)
   T = zeros(M_g)
   #P = zeros(J)
   ρ = zeros(J)
@@ -541,13 +575,14 @@ function get_averages_threads(v,par_grid,par_evolv, par_f)
       (Energy_K[j],Energy_E[j]) = get_energy_rel(v[:,j],(L,N,J))
       EField_T[j] = sum(v[2N+1:end,j])
       p_T[j] = sum(v[N+1:2N])*dx
-      get_density_threads!(v[:,j], ρ, par_density)
+      get_density_threads!(v[:,j], ρ, par_density,0.0)
       get_current_rel_threads!(v[:,j], S, par_current)
       Q_T[j] = get_total_charge(ρ,(J, dx)) / L # we divide by L because the density is 1, so the total charge is L, this way we compare with 1.
       S_T[j] = sum(S)/N/Q_T[j]
       T[j] = var(v[N+1:2N,j])
+      E_mode = abs(rfft(v[2N+1:end,j])[nm+1])
   end
-  return Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T
+  return Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T, E_mode
 end
 
 
@@ -570,18 +605,19 @@ function get_local_averages_threads(u,par_grid, par_f)
   Efield = u[2N+1:end]
   EField_T = sum(u[2N+1:end])*dx
   p_T = sum(u[N+1:2N])*dx
-  get_density_threads!(u[:], ρ, par_density)
+  get_density_threads!(u[:], ρ, par_density, 0.0)
   get_current_rel_threads!(u[:], S, par_current)
   Q_T = get_total_charge(ρ,(J, dx)) / L # we divide by L because the density is 1, so the total charge is L, this way we compare with 1.
   S_T = sum(S)/N/Q_T
   #T = var(u[N+1:2N])
   T = get_temperature_rel(u,N)
+  E_mode = abs(rfft(u[2N+1:end])[nm+1])
 
-  return ρ, S, Efield, Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T
+  return ρ, S, Efield, Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T, E_mode
 end
 
 function load_averages(file_name, j, par_grid, pars_f)
-    ρ, S, Efield, Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T = get_local_averages_threads(u,par_grid, pars_f)
+    ρ, S, Efield, Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T, E_mode = get_local_averages_threads(u,par_grid, pars_f)
     tiempo = @sprintf("%05d", j)
     jldopen(file_name, "a+") do file
         file["n_$(tiempo)"] = ρ
@@ -594,6 +630,7 @@ function load_averages(file_name, j, par_grid, pars_f)
         file["Q_T_$(tiempo)"] = Q_T
         file["S_T_$(tiempo)"] = S_T
         file["T_$(tiempo)"] = T
+        file["E_mode_$(tiempo)"] = E_mode
     end
 end
 
@@ -607,6 +644,7 @@ function retrieve_average_data(data, par_grid, par_evolv; M_last=nothing)
   EField_T = zeros(M_g)
   Energy_K = zeros(M_g)
   Energy_E = zeros(M_g)
+  E_mode = zeros(M_g)
   p_T = zeros(M_g)
   Q_T = zeros(M_g)
   S_T = zeros(M_g)
@@ -626,8 +664,9 @@ function retrieve_average_data(data, par_grid, par_evolv; M_last=nothing)
       Q_T[j] = data["Q_T_$(tiempo)"]
       S_T[j] = data["S_T_$(tiempo)"]
       T[j] = data["T_$(tiempo)"]
+      E_mode[j] = data["E_mode_$(tiempo)"]
   end
-  return n_t, S_t, Efield_t, (Energy_E,  Energy_K, EField_T, p_T, Q_T, S_T, T)
+  return n_t, S_t, Efield_t, (Energy_E,  Energy_K, EField_T, p_T, Q_T, S_T, T, E_mode)
 end
 
 function retrieve_data(data, par_grid, par_evolv)
@@ -739,3 +778,4 @@ function temperature_fit(t_series, T, p_tl001, N_i, N_f, run_name, save_plots)
   end
   return fit_tl001, plt
 end
+
