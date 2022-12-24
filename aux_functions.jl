@@ -703,15 +703,16 @@ end
 
 function plot_averages(averages, t_series, N, run_name, save_plots)
   Energy_K, Energy_E, EField_T, p_T, Q_T, S_T = averages
+  M_last = length(t_series)
   E1 = Energy_K[1] + Energy_E[1]
   plt = plot(layout=(2,2), size=(800,600))
-  plot!(subplot=1, t_series, Energy_K[1:end] .- Energy_K[1], label="Energy_K")
-  plot!(subplot=1, t_series, Energy_E[1:end] .- Energy_E[1], label="Energy_E")
+  plot!(subplot=1, t_series, Energy_K[1:M_last] .- Energy_K[1], label="Energy_K")
+  plot!(subplot=1, t_series, Energy_E[1:M_last] .- Energy_E[1], label="Energy_E")
   #plot!(subplot=1, t_series, Energy_K, label="Energy_K")
   #plot!(subplot=1, t_series, Energy_E[1:400], label="Energy_E")
-  plot!(subplot=2, t_series, (Energy_K + Energy_E) ./ E1 .- 1.0, label="Total Energy")
-  plot!(subplot=3, t_series, Q_T .- 1, label="charge")
-  plot!(subplot=4, t_series, S_T, label="Total Current", legend=:topleft)
+  plot!(subplot=2, t_series, (Energy_K + Energy_E)[1:M_last] ./ E1 .- 1.0, label="Total Energy")
+  plot!(subplot=3, t_series, Q_T[1:M_last] .- 1, label="charge")
+  plot!(subplot=4, t_series, S_T[1:M_last], label="Total Current", legend=:topleft)
   if save_plots
       png("Images/"  * run_name * "_total_run")
   end
@@ -719,12 +720,13 @@ function plot_averages(averages, t_series, N, run_name, save_plots)
 end
 
 function plot_energies(Energy_K, Energy_E, t_series, run_name, save_plots)
+  M_last = length(t_series)
   E1 = Energy_K[1] + Energy_E[1]
-  plt = plot(t_series[2:end], abs.(Energy_K[2:end] .- Energy_K[1]), title = "Energy conservation (order = $(order))", label = "Kinetic Energy"
+  plt = plot(t_series[2:end], abs.(Energy_K[2:M_last] .- Energy_K[1]), title = "Energy conservation (order = $(order))", label = "Kinetic Energy"
     #, legend = :outertopright
     , legend = :bottomright, ls=:dash)
-    plot!(t_series[2:end], abs.(Energy_E[2:end] .- Energy_E[1]), label = "|Electric Energy|", ls=:dot)
-    plot!(t_series[2:end], abs.(Energy_K[2:end] + Energy_E[2:end] .- E1) ./ E1
+    plot!(t_series[2:M_last], abs.(Energy_E[2:M_last] .- Energy_E[1]), label = "|Electric Energy|", ls=:dot)
+    plot!(t_series[2:M_last], abs.(Energy_K[2:M_last] + Energy_E[2:M_last] .- E1) ./ E1
     , yscale=:log10
     #, xscale=:log10
     , label = "Total Energy / Initial Energy -1 ")
