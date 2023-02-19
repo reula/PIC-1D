@@ -4,6 +4,7 @@ using DistributedArrays.SPMD
 @everywhere using Distributed
 @everywhere using DistributedArrays
 @everywhere using DistributedArrays.SPMD
+using StaticArrays
 
 """
 The following function evaluates the electric field on a uniform grid from the electric potential.
@@ -151,6 +152,31 @@ function get_density!(u, n, par_grid, shift)
   return n[:] # return rho directly (we need to subtract 1 in cases where we assume positive particles, but this is done elsewhere.)
 end
 
+function get_density_2D!(u, n, par_grid, shift)
+  @show N, Box, J, order = par_grid
+  #vol = volume(Box)
+  fill!(n,0.0)
+  #n0 = N/vol # correct expression but not needed
+  n0 = N
+  j = [1,1]
+  y = [0.0,0.0]
+  #@show u
+  # Evaluate number density.
+  for i in 1:N
+    s = (i-1)*4 + 1
+    u_r = view(u,s:(s+2-1))
+    @inbounds j, y = get_index_and_y!(j,y,u_r,J,Box)
+    y = y .- shift # shift must be the same in all directions!
+    for l in (-order):order 
+      for m in (-order):order
+      #@inbounds n[mod1(j + l, J)] += Shape(order, -y + l) / dx / n0; # the dx here is from the different definition from the paper
+      @inbounds n[mod1(j[1] + l, J[1]), mod1(j[2] + m, J[2])] += Shape(order, -y[1] + l) * Shape(order, -y[2] + m)/ n0
+      end
+    end
+  end
+  return n[:,:] # return rho directly (we need to subtract 1 in cases where we assume positive particles, but this is done elsewhere.)
+end
+
 
 function get_density_threads!(u, n, p, shift)
   par_grid, Tn = p
@@ -192,6 +218,10 @@ function get_total_charge(ρ,par)
   return Q * dx
 end
 
+function get_total_charge(ρ,Vol)
+  Q = sum(ρ)*Vol/length(ρ)
+end
+
 """The routine below evaluates the electron current on an evenly spaced mesh given the instantaneous electron coordinates.
 // Evaluates electron number density S(0:J-1) from 
 // array r(0:N-1) of electron coordinates.
@@ -213,6 +243,29 @@ function get_current_rel!(u, S, par_grid)
   return S[:] # allready normalized with n0
 end
 
+
+    
+function get_current_rel!(u, S, par_grid)
+  N, Box, J, order = par_grid 
+  D = length(J)
+  #vol = volume(Box)
+  fill!(S,0.0)
+  #n0 = N/vol # correct expression but not needed
+  n0 = N
+  for i in 1:N
+    s = (i-1)*D + 1
+    r = view(u,s:s+D-1)
+    p = view(u,s+D:s+2*D-1) # in the relativistic version we compute p instead of v
+    @inbounds j, y = get_index_and_y(r,J,Box)
+    #@inbounds v = p2v(p) / vol / n0 # correct but can be made simpler
+    @inbounds v = p2v(p) / n0
+    #### NOT FINISHED YET #####
+    for l in (-order):order 
+      @inbounds S[mod1(j[i] + l, J)] += Shape(order, -y + l) * v;
+    end
+  end
+  return S[:] # allready normalized with n0
+end
 
 function get_current_rel_threads!(u, S, p)
   par_grid, TS = p
@@ -283,7 +336,7 @@ function RHSC_rel(u,t,p_RHSC)
     end
 
     for j in 1:J
-        @inbounds du[2N+j] =  S[j] # particles have negative sign!
+      @inbounds du[2N+j] =  S[j] # particles have negative sign!
     end
     return du[:]
 end
@@ -341,6 +394,26 @@ function get_index_and_y(s,J,L)
   return j, y
 end
 
+"""
+same as before, but for an arbitrary box and dimension.
+Jt = (100, 200, 200)
+Box = (0.0, 10, 0.0, 20, -20.0, 0.0)
+ss = [8.74, 8.74, -11.26]
+j=[1,1,1]
+y=zeros(3)
+get_index_and_y!(j,y,ss,Jt,Box)
+([88, 88, 88], [0.4000000000000057, 0.39999999999997726, 0.4000000000000057])
+"""
+function get_index_and_y!(j::Array{Int64,1}, y::Array{Float64,1}, s, J::Tuple,Box::Tuple)
+  D = length(s)
+  for i in 1:D
+    y[i] =  (s[i]/(Box[2i] - Box[2i-1])*J[i] + J[i])%J[i]
+    j[i] = floor(Int,y[i]) + 1
+    y[i] = (y[i]%1)
+  end
+  return j[:], y[:]
+end
+
 function get_energy_rel(u,p)
   L, N, J = p
   dx = L/J
@@ -362,6 +435,7 @@ Derivatives of shape functions.
 They have support for -(order+1)/2 =< y =< (order+1)/2
 """
 @inline function W(order::Int,y::Float64)
+  #y = norm(y)
   y = abs(y)
   if order == 0
     return  (y <= 1/2) ? 1 : 0
@@ -374,11 +448,14 @@ They have support for -(order+1)/2 =< y =< (order+1)/2
   elseif order == 4
     return (y <= 1/2) ? 115/192 - 5y^2/8 + y^4/4 : (((y > 1/2) && (y <= 3/2)) ? (55 + 20y -120y^2 + 80y^3 - 16y^4)/96 : (((y > 3/2) && (y < 5/2)) ? (5 - 2y)^4/384 : 0))
   elseif order == 5
-    return (y <= 1) ? 11/20 - y^2/2 + y^4/4 - y^5/12 : (((y > 1) && (y <= 2)) ? 17/40 + 5y/8 - 7y^2/4 + 5y^3/4 - 3y^4/8 + y^5/24 : (((y > 2) && (y < 3)) ? (3 - y)^5/120 : 0))
+    #return (y <= 1) ? 11/20 - y^2/2 + y^4/4 - y^5/12 : (((y > 1) && (y <= 2)) ? 17/40 + 5y/8 - 7y^2/4 + 5y^3/4 - 3y^4/8 + y^5/24 : (((y > 2) && (y < 3)) ? (3 - y)^5/120 : 0))
+    return (y <= 1) ? 11/20 - y^2/2 + y^4/4 - y^5/12 : (((y <= 2)) ? 17/40 + 5y/8 - 7y^2/4 + 5y^3/4 - 3y^4/8 + y^5/24 : (((y < 3)) ? (3 - y)^5/120 : 0))
+  
   else
     error("order = $order not yet implemented ")
   end
 end
+
 
 """
 Alternative definition
@@ -475,6 +552,11 @@ end
 Structure and functions to work with particles 
 This is probably much faster for the position and
 velocity are adjacent in memory.
+
+Initially the vector u in 1D was of the form: [x[N],v[N],E[J]]
+in more dimensions it would be [x1[N],x2[N],x3[N],v1[N],v2[N],v3[N],E1[Jx*Jy],E2,E3,B1,B2,B3] or [x1,x2,v1,v2,E1,E2,B3]
+So the sizes are: 1D 2N+J, 2D 4N+Jx*Jy*3, 3D 6N+Jx*Jy*Jz*6
+uor (ordered u) has the form [x1[1],x2[1],x3[1],v1[1],v2[1],v3[1], etc.]
 """
 
 mutable struct Particles
@@ -501,11 +583,13 @@ end
 """
 reorder particle vector so that position and velocity are contiguous
 """
-function reorder_particles!(u,uro)
-  N = length(u)÷2
+function reorder_particles!(u,uro,dimension)
+  N = length(u)÷2÷dimension # particles number
   for i in 1:N
-    uro[2i - 1] = u[i]
-    uro[2i] = u[N+i]
+    for d in dimension
+      uro[2i - 1 + d] = u[dimension*i+d]
+      uro[2i*d] = u[N+i]
+    end
   end
 end
 
@@ -781,3 +865,55 @@ function temperature_fit(t_series, T, p_tl001, N_i, N_f, run_name, save_plots)
   return fit_tl001, plt
 end
 
+"""
+Plots the values of a matrix as a surface plot.
+"""
+function plot_matrix(A::Matrix{Float64}; fc=:ocean, linealpha=0.3, fillalpha=0.5, camera=(60,40), title = "")
+    default(size=(600,600)
+#, fc=:thermal
+#, fc=:heat
+    , fc=fc
+    )
+    if !(ndims(A) == 2) 
+        error("Array must be 2 dimensional and seems to be of dims = $(ndims(A))")
+    end
+    (n,m) = size(A)
+    x, y = 1:n, 1:m
+    z = Surface((x,y)->A[x,y], x, y)
+    surface(x,y,z, linealpha = linealpha, fillalpha=fillalpha, display_option=Plots.GR.OPTION_SHADED_MESH, camera=camera, title = title)
+end
+
+
+############## GRID FUNCTIONS #################
+"""
+Grid volume
+"""
+function volume(Box) 
+  if length(Box) == 2
+    return abs(Box[2]-Box[1])
+  elseif length(Box) == 4
+    return abs((Box[2]-Box[1])*(Box[4]-Box[3]))
+  elseif length(Box) == 6
+    return abs((Box[2]-Box[1])*(Box[4]-Box[3])*(Box[6]-Box[5]))
+  else 
+    error("wrong length for Box")
+  end
+end
+
+"""
+Grid Differential 
+"""
+function differentials(Box,J,periodic=true)
+  D = length(J)
+  dd = zeros(D)
+  if periodic
+    for i in 1:D
+      dd[i] = (Box[2i] - Box[2i-1])/J[i]
+    end
+  else
+    for i in 1:D
+      dd[i] = (Box[2i] - Box[2i-1])/(J[i]-1)
+    end
+  end
+  return dd[:]
+end
