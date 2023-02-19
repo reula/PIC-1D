@@ -17,6 +17,18 @@ function random_sampling_from_distribution(f,f_max,par_f,interval)
  end
 end
 
+function random_sampling_from_distribution(f,f_max,par_f,Box)
+  fmax = f_max(par_f)
+  for i in 1:length(Box ÷ 2)
+    x[i] = Box[i*2] + (Box[i*2+1] - Box[i*2]) * (rand());
+  end
+  #  Accept/reject value
+  f_v = f(x,par_f)
+  x_t = fmax * rand()
+  if (x_t > f_v) return random_sampling_from_distribution(f,f_max,par_f,Box)
+  else return x[:]
+  end
+ end
 """
 build_initial_data(data_name::String, par_grid, f_r, f_r_max, f_p, f_p_max, par_f_r, par_f_p)
 builds complete initial data for distributions which are product of two distributions.
@@ -59,8 +71,34 @@ function build_initial_data(data_name::String, pars, f_x, f_x_max, par_f_x, inte
     jldopen(file_name, "a+") do file
         file[field_name] = par_dis;
     end
+  end
 
-
+function build_initial_data_D(data_name::String, pars, f_x, f_x_max, par_f_x, Box_x, f_p, f_p_max, par_f_p, Box_p)
+      N, = pars
+      D = length(Box_x)
+      par_dis = zeros(D*N*2)
+      
+      
+      for i in 1:N
+        r[(i-1)*2*D+1:(i-1)*2*D+D] = random_sampling_from_distribution(f_x,f_x_max,par_f_x,Box_x)
+      end
+      
+  
+      for i in 1:N÷2
+          r[(i-1)*2*D+1+D:(i-1)*2*D+2*D] = random_sampling_from_distribution(f_p,f_p_max,par_f_p,Box_p)
+          r[N÷2 + (i-1)*2*D+1+D:N÷2 + (i-1)*2*D+2*D] = - r[(i-1)*2*D+1+D:(i-1)*2*D+2*D]
+      end
+  
+      file_name = "Initial_Distributions/" * data_name * ".jld2"
+      
+      field_name = "par_dis"
+      run_pars = Dict("data_name" => data_name, "pars" => pars, "par_f_x" => par_f_x,"par_f_p" => par_f_p)
+      save(file_name, run_pars)
+      
+      #save("Initial_Distributions/" * data_name * ".jld2", "field_name", par_dis)
+      jldopen(file_name, "a+") do file
+          file[field_name] = par_dis;
+      end
 end
 
 function retrieve_initial_data(file_name::String)
@@ -81,7 +119,43 @@ function norm_f_p_rel(f_p_rel, par_f_p, n, p_max)
   dp = p_max/(n-1) 
   p = [dp*(i-1) for i in 1:n]
   F(p) = f_p_rel(p,par_f_p)
-  return (sum(F.(p)) - 0.5*(F(0) + F(p_max)))*dp*2 
+  return (sum(F.(p)) - 0.5*(F(0) + F(p_max)))*dp*2 # the 2 is for the negative side (ONLY FOR SYMMETRIC DISTRIBUTIONS)
+end
+
+function int_mid_point_f(f, par, n::Array, Box_p::Tuple)
+  #Vol = volume(Box) 
+  D = length(n)
+  if D == 1
+      dp = (Box_p[2]-Box_p[1])//(n[1]-1)
+      pp = [Box_p[1] + dp*(i-1) for i in 1:n[1]]
+      F = [f(p,par) for p in pp]
+      return (sum(F) - 1//2*(F[1] + F[end]))*dp*2 # the 2 is for the negative side (ONLY FOR SYMMETRIC DISTRIBUTIONS)
+  elseif D == 2
+      dp1 = (Box_p[2]-Box_p[1])//(n[1]-1)
+      dp2 = (Box_p[4]-Box_p[3])//(n[2]-1)
+      pp1 = [Box_p[1] + dp1*(i-1) for i in 1:n[1]]
+      pp2 = [Box_p[3] + dp2*(i-1) for i in 1:n[2]]
+      F = [f([p1,p2],par) for p1 in pp1, p2 in pp2]
+      return (sum(F) - 1//2*(sum(F[1,:] + F[end,:]) + sum(F[:,1] + F[:,end])) + 1//4*(F[1,1]+F[1,end]+F[end,1]+F[end,end]))*dp1*dp2
+  elseif D == 3
+    dp1 = (Box_p[2]-Box_p[1])//(n[1]-1)
+    dp2 = (Box_p[4]-Box_p[3])//(n[2]-1)
+    dp3 = (Box_p[6]-Box_p[5])//(n[3]-1)
+    pp1 = [Box_p[1] + dp1*(i-1) for i in 1:n[1]]
+    pp2 = [Box_p[3] + dp2*(i-1) for i in 1:n[2]]
+    pp3 = [Box_p[5] + dp3*(i-1) for i in 1:n[3]]
+    F = [f([p1,p2,p3],par) for p1 in pp1, p2 in pp2, p3 in pp3]
+    Int = sum(F) 
+    Int += - 1//2*(sum(F[1,:,:] + F[end,:,:]) + sum(F[:,1,:] + F[:,end,:]) + sum(F[:,:,1] + F[:,:,end])) 
+    Int += + 1//4*sum(F[1,1,:]+F[1,end,:]+F[end,1,:]+F[end,end,:])
+    Int += + 1//4*sum(F[1,:,1]+F[1,:,end]+F[end,:,1]+F[end,:,end]) 
+    Int += + 1//4*sum(F[:,1,1]+F[:,1,end]+F[:,end,1]+F[:,end,end])
+    Int += - 1//8*(F[1,1,1]+F[1,1,end]+F[1,end,1]+F[1,end,end]+F[end,1,1]+F[end,1,end]+F[end,end,1]+F[end,end,end])
+    Int = Int*dp1*dp2*dp3
+    return Int
+  else 
+    error("more than 3 dimensions is not implemented")
+  end
 end
 
 f_p_rel(p,(θ,norm)) = exp((1 - sqrt(1+p^2))/θ) / sqrt(θ*π*2) / norm 
@@ -89,6 +163,9 @@ f_p_rel_max((θ,norm)) = 1 / sqrt(θ*π*2) / norm
 
 f_p(p,(θ,)) = exp(- p^2/θ/2) / sqrt(θ*π*2)
 f_p_max((θ,)) = 1 / sqrt(θ*π*2)
+
+f_p_rel(p::Array,(θ,norm)) = exp((1 - sqrt(1+p'*p))/θ) / sqrt(θ*π*2) / norm 
+f_p_rel_max((θ,norm)) = 1 / sqrt(θ*π*2) / norm 
 
 """The following routine returns a random velocity distributed on a double Maxwellian distribution function 
 corresponding to two counter-streaming beams. The algorithm used to achieve this is called the rejection method, 
@@ -116,7 +193,7 @@ end
 
 # space distributions 
 
-function f_x(x,par_f_x) 
+function f_x(x::Float64,par_f_x) 
     α, mn, L = par_f_x
     k = 2π*mn/L
     return (1 + α *cos(k*x))/L
@@ -125,6 +202,24 @@ end
 function f_x_max(par_f_x)
     α, mn, L = par_f_x
     return (1+abs(α))/L
+end
+
+"""
+Example:
+Box = (0.0,3.0,-1.0,1.0)
+m = [1,3]
+α = [0.1,0.2]
+par = (α, m, Box)
+f_x([3,4],par)
+> 0.75
+"""
+function f_x(x::Array,par_f_x)
+  α, m, Box = par_f_x
+  k = zeros(length(α))
+  Box_array = [i for i in Box]
+  L = Box_array[2:2:end] - Box_array[1:2:end]
+  k = 2π*m./L 
+  return 1 + α'*cos.(k)
 end
 
 
