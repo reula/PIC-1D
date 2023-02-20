@@ -5,6 +5,8 @@ using DistributedArrays.SPMD
 @everywhere using DistributedArrays
 @everywhere using DistributedArrays.SPMD
 using StaticArrays
+using Base.Threads
+using Printf
 
 """
 The following function evaluates the electric field on a uniform grid from the electric potential.
@@ -354,6 +356,20 @@ end
 function make_periodic!(r,L)
   return mod1.(r,L)
 end
+
+function make_periodic!(r,Box::Tuple)
+  D = length(Box)÷2
+  N = length(r)÷2÷D
+  Box_array = [i for i in Box]
+  L = Box_array[2:2:end] - Box_array[1:2:end-1]
+  for i in 1:N
+    for j in 1:D
+      r[(i-1)*2*D+j] = mod1(r[(i-1)*2*D+j] - Box_array[2j-1], L[j]) + Box_array[2j-1]
+    end
+  end
+  return r[:]
+end
+
 
 
 function RK4_Step!(f,y0,t0,h,p)
