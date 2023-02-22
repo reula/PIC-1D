@@ -89,15 +89,6 @@ function build_initial_data_D(data_name::String, pars, f_x, f_x_max, par_f_x, Bo
       for i in 1:N
         par_dis[(i-1)*2*D+1:(i-1)*2*D+D] = random_sampling_from_distribution(f_x,f_x_max,par_f_x,Box_x)
       end
-
-      # Now the momentum distribution
-      
-      # for the relativistic case we have to set the correct normalization
-      if false #relativistic == true
-        (θ,norm_f,D) = par_f_p
-        n = fill(10000,length(Box_p)÷2)
-        norm_f = int_mid_point_f(f_p, (θ,1), n, Box_p)
-      end
   
       # We set part of the distribution in antisymmetric form so that the total momentum vanishes.
       for i in 1:2D:D*N
@@ -105,7 +96,7 @@ function build_initial_data_D(data_name::String, pars, f_x, f_x_max, par_f_x, Bo
           par_dis[D*N + i+D:D*N + i-1+2D] = - par_dis[i+D:(i-1)+2D]
       end
   
-      file_name = "../Initial_Distributions/" * data_name * ".jld2"
+      file_name = "Initial_Distributions/" * data_name * ".jld2"
       
       field_name = "par_dis"
       run_pars = Dict("data_name" => data_name, "pars" => pars, "par_f_x" => par_f_x, "Box_x" => Box_x, "par_f_p" => par_f_p, "Box_p" => Box_p)
@@ -117,7 +108,7 @@ function build_initial_data_D(data_name::String, pars, f_x, f_x_max, par_f_x, Bo
       end
 end
 
-function retrieve_initial_data(file_name::String)
+function retrieve_initial_data_D(file_name::String)
   data = load(file_name)
   run_name = data["data_name"]
   pars = data["pars"]
@@ -127,6 +118,16 @@ function retrieve_initial_data(file_name::String)
   Box_p = data["Box_p"]
 
   return data["par_dis"], run_name, pars, par_f_x, Box_x, par_f_p, Box_p
+end
+
+function retrieve_initial_data(file_name::String)
+  data = load(file_name)
+  run_name = data["data_name"]
+  pars = data["pars"]
+  par_f_x = data["par_f_x"]
+  par_f_p = data["par_f_p"]
+
+  return data["par_dis"], run_name, pars, par_f_x, par_f_p
 end
 
 # momentum distributions
@@ -248,15 +249,6 @@ function f_x(x::Array,par_f_x)
   return (1 + α*cos(k'*x))/volume(Box)
 end
 
-function get_positions(x,i,par_dis)
-  D = length(x)
-  return par_dis[(i-1)*2*D+1:(i-1)*2*D+D]
-end
-
-function get_momenta(p,i,par_dis)
-  D = length(p)
-  return par_dis[(i-1)*2*D+1+D:(i-1)*2*D+2*D]
-end
 
 
     
