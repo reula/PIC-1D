@@ -22,6 +22,21 @@ function get_E_from_ϕ!(ϕ, E, dx)
       E[J] = (ϕ[J-1] - ϕ[1]) / 2. / dx;
 end
 
+function get_E_from_ϕ!(ϕ, E, Box_x::Tuple)
+    J = size(E[1])
+    D = length(J)
+    dx = differentials(Box_x,J)
+    for i in 1:D
+      for k in 1:J[1]
+        for j in 1:J[2]
+         # E[j,k][i] = (ϕ[j-1] - ϕ[j+1]) / 2. / dx
+      end
+    end
+  end
+
+# UNFINISHED
+end
+
 """ The following routine solves Poisson's equation in 1-D to find the instantaneous electric potential on a uniform grid.
 
 // Solves 1-d Poisson equation:
@@ -51,6 +66,29 @@ function get_ϕ!(ϕ, ρ, κ)
 
   # Inverse Fourier transform to obtain u
   ϕ[:] = irfft(V,J)
+end
+
+function get_ϕ_D!(ϕ, ρ, Box)
+  #V = fill(0.0+im*0.,J) 
+  #U = fill(0.0+im*0.,J÷2+1) 
+  J = size(ρ)
+  D = length(Box)÷2
+  Box_array = [i for i in Box]
+  κ = 2π./(Box_array[2:2:end] - Box_array[1:2:end-1])
+  # Fourier transform source term
+  V = rfft(ρ)
+
+  # Calculate Fourier transform of u
+
+  V[1,1] =  0.
+  for i in  2:(J[1]÷2+1)
+    for j in 2:(J[2]÷2+1)
+      V[i,j] = - V[i,j] / ((i-1)^2 / κ[1]^2 + (j-1)^2 / κ[2]^2)
+    end
+  end
+
+  # Inverse Fourier transform to obtain u
+  ϕ[:,:] = irfft(V,J)
 end
 
 """
@@ -112,22 +150,24 @@ end
 v2p(v;m=1)
 Given a 3-velocity computes the momentum
 """
-v2p(v;m=1) = m*v/sqrt(1-v^2)
+#v2p(v;m=1) = m*v/sqrt(1-v^2)
+v2p(v;m=1) = m*v/sqrt(1-v'*v) # this works fine
+#v2p(v::Array;m=1) = m*v/sqrt(1-v'*v)
 """
 p2v(p;m=1) 
 Given a 3-momentum computes the 3-velocity
 """
-p2v(p;m=1) = p/sqrt(m^2+p^2)
+p2v(p;m=1) = p/sqrt(m^2+p'*p)
 
 """ 
 The energy function from momentum 
 """
-γ_p(p;m=1) = sqrt(m^2 + p^2)/m 
+γ_p(p;m=1) = sqrt(m^2 + p'*p)/m 
 
 """ 
 The energy function from 3-velocity
 """
-γ(v) = 1/sqrt(1 - v^2)
+γ(v;m=1) = m/sqrt(1 - v'*v)
 
 
 """The routine below evaluates the electron number density on an evenly spaced mesh given the 
@@ -155,18 +195,22 @@ function get_density!(u, n, par_grid, shift)
 end
 
 function get_density_2D!(u, n, par_grid, shift)
-  @show N, Box, J, order = par_grid
+  N, Box, J, order = par_grid
   #vol = volume(Box)
   fill!(n,0.0)
   #n0 = N/vol # correct expression but not needed
+  D = 2
+  if D != length(J) 
+    error("dimension mismach")
+   end
   n0 = N
   j = [1,1]
   y = [0.0,0.0]
   #@show u
   # Evaluate number density.
   for i in 1:N
-    s = (i-1)*4 + 1
-    u_r = view(u,s:(s+2-1))
+    s = (i-1)*2D + 1
+    u_r = view(u,s:(s+D-1))
     @inbounds j, y = get_index_and_y!(j,y,u_r,J,Box)
     y = y .- shift # shift must be the same in all directions!
     for l in (-order):order 
@@ -247,27 +291,34 @@ end
 
 
     
-function get_current_rel!(u, S, par_grid)
+function get_current_rel_2D!(u, S, par_grid)
   N, Box, J, order = par_grid 
-  D = length(J)
+  D = 2
+   if D != length(J) 
+    error("dimension mismach")
+   end
   #vol = volume(Box)
-  fill!(S,0.0)
+  fill!(S,[0.0,0.0])
   #n0 = N/vol # correct expression but not needed
   n0 = N
   for i in 1:N
-    s = (i-1)*D + 1
+    s = (i-1)*2D + 1
     r = view(u,s:s+D-1)
     p = view(u,s+D:s+2*D-1) # in the relativistic version we compute p instead of v
-    @inbounds j, y = get_index_and_y(r,J,Box)
+    j = [1,1]
+    y = [0.0,0.0]
+    @inbounds j, y = get_index_and_y!(j,y,r,J,Box)
     #@inbounds v = p2v(p) / vol / n0 # correct but can be made simpler
-    @inbounds v = p2v(p) / n0
-    #### NOT FINISHED YET #####
+    @inbounds v = p2v(p) / n0 # dividimos aquí para hacerlo más eficiente.
     for l in (-order):order 
-      @inbounds S[mod1(j[i] + l, J)] += Shape(order, -y + l) * v;
+      for m in (-order):order
+      @inbounds S[mod1(j[1] + l, J[1]), mod1(j[2] + m, J[2])] += Shape(order, -y[1] + l) * Shape(order, -y[2] + m) * v;
+      end
     end
   end
-  return S[:] # allready normalized with n0
+  return S[:,:] # allready normalized with n0
 end
+
 
 function get_current_rel_threads!(u, S, p)
   par_grid, TS = p
@@ -303,12 +354,25 @@ function get_current_rel_threads!(u, S, p)
   S[:]
 end
 
-function get_temperature(u,N)
-  return var(u[N+1:2N])
+function get_temperature(u,N;m=1)
+  return m*var(u[N+1:2N])
 end
 
-function get_temperature_rel(u,N)
-  return var(p2v.(u[N+1:2N]))
+function get_temperature_rel(u,N;m=1)
+  return m*var(p2v.(u[N+1:2N]))
+end
+
+"""
+Chequeada en ini_dat_v2.ipynb
+"""
+function get_temperature_rel_D(u,N,D;m=1)
+  sv = zeros(D)
+  sv2 = zeros(D)
+  for d in 1:D
+    sv[d] = sum(u[D+d:2D:N*2D])
+    sv2[d] = sum(u[D+d:2D:N*2D].^2)
+  end
+  return m*(sum(sv2) - sv'*sv)/N/D
 end
 
 """
@@ -350,6 +414,15 @@ function Coordinate_test(r,L)
     if maximum(r) > L
         error("coordintates extend beyond L")
     end
+end
+
+function Coordinate_test(r,Box::Tuple)
+  D = length(Box)÷2
+  for d in 1:D
+    if minimum(r[d:2D:2D*N]) < Box[2d-1] || maximum(r[d:2D:2D*N]) > Box[2d]
+      error("particle out of Box")
+    end
+  end
 end
 
 
@@ -437,6 +510,7 @@ function get_energy_rel(u,p)
   energy_K = 0.0
   energy_E = 0.0
   for i in 1:N
+    get_momenta!
     energy_K = energy_K + (sqrt(1+u[N+i]^2) - 1)
   end
   for j in 1:J
@@ -446,6 +520,25 @@ function get_energy_rel(u,p)
   return energy_K / n0,  dx * energy_E / 2 # normalized version
 end
 
+function get_energy_rel(u,par; m=1)
+  Box, N, J= p
+  dx = differentials(Box,J)
+  D = length(dx)
+  n0 = N/volume(Box)
+  energy_K = 0.0
+  energy_E = 0.0
+  p = zeros(D)
+  for i in 1:N
+    get_momenta!(p,i,u)
+    energy_K = energy_K + (sqrt(m^2+p'*p/m^2) - m)
+  end
+  
+    get_Fields!(E,B,u)
+    energy_E = sum.(E'*E+B'*B)
+  
+  # return energy_K,  dx * energy_E / 2 * n0
+  return energy_K / n0,  dx * energy_E / 2 # normalized version
+end
 """
 Derivatives of shape functions.
 They have support for -(order+1)/2 =< y =< (order+1)/2
@@ -608,6 +701,34 @@ function reorder_particles!(u,uro,dimension)
     end
   end
 end
+
+"""
+This function assumes that the particle vector is ordered one particle phase space after the other.
+    D = 2
+    x = zeros(D)
+    par_dis = [1, 2, 3, 4, 5, 6, 7, 8]
+    i = 2
+    get_positions!(x,i,par_dis)
+    > [5.0, 6.0]
+"""
+function get_positions!(x,i,par_dis)
+  D = length(x)
+  x[:] = par_dis[(i-1)*2*D+1:(i-1)*2*D+D]
+end
+"""
+This function assumes that the particle vector is ordered one particle phase space after the other.
+  D = 2
+  p = zeros(D)
+  par_dis = [1, 2, 3, 4, 5, 6, 7, 8]
+  i = 2
+  get_positions!(p,i,par_dis)
+  > [7.0, 8.0]
+"""
+function get_momenta!(p,i,par_dis)
+  D = length(p)
+  p[:] = par_dis[(i-1)*2*D+1+D:i*2*D]
+end
+
 
 #=
 ################################################################################################
