@@ -224,34 +224,43 @@ function get_density_2D!(u, n, par_grid, shift)
   return n[:,:] # return rho directly (we need to subtract 1 in cases where we assume positive particles, but this is done elsewhere.)
 end
 
-function get_density_threads!_2D!(u, n, par, shift)
-  par_grid, Tn = p
+function get_density_threads_2D!(u, n, par, shift)
+  par_grid, Tn = par
   N, Box, J, order = par_grid
   D = 2
   if D != length(J) 
     error("dimension mismach")
    end
-  j = fill(Int64(1),nthreads()) 
-  y = fill(Float64(1.0),nthreads())
-  Tn .= zeros(Float64)
-  n0 = N
-  
+  u_r = fill([0.0,0.0],nthreads())
+  j = fill([1,1],nthreads()) 
+  y = fill([0.0,0.0],nthreads())
+  Tn .= 0.0 
+  s = fill(0, nthreads())
   n0 = N
   # Evaluate number density.
-  @threads for i in 1:N
-    s = (i-1)*2D + 1
-    u_r = view(u,s:(s+D-1))
+  @threads  for i in 1:N
+              s[threadid()] = (i-1)*2D + 1
+              u_r[threadid()] = view(u,s[threadid()]:(s[threadid()]+D-1))
     #@inbounds j, y = get_index_and_y!(j,y,u_r,J,Box)
-    @inbounds get_index_and_y!(j,y,u_r,J,Box)
-    @inbounds get_index_and_y!(j[threadid()], y[threadid()], u_r, J, Box)
-    y[threadid()] .= y[threadid()] .- shift # shift must be the same in all directions!
-    for l in (-order):order 
-      for m in (-order):order
+    #@inbounds get_index_and_y!(j,y,u_r,J,Box)
+              @inbounds j[threadid()], y[threadid()] = get_index_and_y!(j[threadid()], y[threadid()], u_r[threadid()],J , Box) 
+              y[threadid()] .= y[threadid()] .- shift # shift must be the same in all directions!
+              for l in (-order):order 
+                for m in (-order):order
       #@inbounds n[mod1(j + l, J)] += Shape(order, -y + l) / dx / n0; # the dx here is from the different definition from the paper
-      @inbounds n[mod1(j[1] + l, J[1]), mod1(j[2] + m, J[2])] += Shape(order, -y[1] + l) * Shape(order, -y[2] + m)/ n0
-      end
-    end
-  end
+                  @inbounds Tn[mod1(j[1][threadid()] + l, J[1]), mod1(j[2][threadid()] + m, J[2]), threadid()] += Shape(order, -y[1][threadid()] + l) * Shape(order, -y[2][threadid()] + m)
+                end
+              end
+            end
+  n .= 0.0
+  #@show n, Tn
+  @threads for j in 1:J[2]
+            for i in 1:J[1]
+              for t in 1:nthreads()
+                @inbounds n[i,j] += Tn[i,j,t]/n0 # the dx here is from the different definition from the paper
+              end
+            end
+          end
   return n[:,:] # return rho directly (we need to subtract 1 in cases where we assume positive particles, but this is done elsewhere.)
 end
 
@@ -531,7 +540,7 @@ function get_index_and_y!(j::Array{Int64,1}, y::Array{Float64,1}, s, J::Tuple,Bo
     j[i] = floor(Int,y[i]) + 1
     y[i] = (y[i]%1)
   end
-  #return j[:], y[:]
+  return j[:], y[:]
 end
 
 function get_energy_rel(u,p)
