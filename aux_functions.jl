@@ -533,14 +533,13 @@ y=zeros(3)
 get_index_and_y!(j,y,ss,Jt,Box)
 ([88, 88, 88], [0.4000000000000057, 0.39999999999997726, 0.4000000000000057])
 """
-function get_index_and_y!(j::Array{Int64,1}, y::Array{Float64,1}, s, J::Tuple,Box::Tuple)
-  D = length(s)
-  for i in 1:D
-    y[i] =  (s[i]/(Box[2i] - Box[2i-1])*J[i] + J[i])%J[i]
+function get_index_and_y!(j::Array{Int64,1}, y::Array{Float64,1}, r, J::Tuple,Box::Tuple) 
+  for i in 1:length(J)
+    y[i] =  (r[i]/(Box[2i] - Box[2i-1])*J[i] + J[i])%J[i]
     j[i] = floor(Int,y[i]) + 1
     y[i] = (y[i]%1)
   end
-  return j[:], y[:]
+  #return j[:], y[:]
 end
 
 function get_energy_rel(u,p)
