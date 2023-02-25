@@ -225,30 +225,31 @@ function get_density_2D!(u, n, par_grid, shift)
 end
 
 function get_density_threads_2D!(u, n, par, shift)
+  #par_grid, Tn, j, y = par # no vale la pena en cuanto a tiempo ni memoria
   par_grid, Tn = par
   N, Box, J, order = par_grid
   D = 2
   if D != length(J) 
     error("dimension mismach")
    end
-  u_r = fill([0.0,0.0],nthreads())
-  j = fill([1,1],nthreads()) 
-  y = fill([0.0,0.0],nthreads())
+  #u_r = Array{Float64}(undef,(D,nthreads()))
+  j = Array{Int64}(undef,2,nthreads())
+  j .= 1
+  y = Array{Float64}(undef,2,nthreads())
+  y .= 0.0
   Tn .= 0.0 
-  s = fill(0, nthreads())
+  #s = [0 for i in 1:nthreads()]
   n0 = N
   # Evaluate number density.
   @threads  for i in 1:N
-              s[threadid()] = (i-1)*2D + 1
-              u_r[threadid()] = view(u,s[threadid()]:(s[threadid()]+D-1))
-    #@inbounds j, y = get_index_and_y!(j,y,u_r,J,Box)
-    #@inbounds get_index_and_y!(j,y,u_r,J,Box)
-              @inbounds j[threadid()], y[threadid()] = get_index_and_y!(j[threadid()], y[threadid()], u_r[threadid()],J , Box) 
-              y[threadid()] .= y[threadid()] .- shift # shift must be the same in all directions!
+              #s[threadid()] = (i-1)*2D + 1
+              #u_r[:,threadid()] = view(u,s[threadid()]:(s[threadid()]+D-1))
+              #j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u_r[:,threadid()],J , Box) 
+              j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u[(i-1)*2D + 1:(i-1)*2D + D],J , Box) 
+      @inbounds  y[:,threadid()] .= y[:,threadid()] .- shift # shift must be the same in all directions!
               for l in (-order):order 
                 for m in (-order):order
-      #@inbounds n[mod1(j + l, J)] += Shape(order, -y + l) / dx / n0; # the dx here is from the different definition from the paper
-                  @inbounds Tn[mod1(j[1][threadid()] + l, J[1]), mod1(j[2][threadid()] + m, J[2]), threadid()] += Shape(order, -y[1][threadid()] + l) * Shape(order, -y[2][threadid()] + m)
+      @inbounds   Tn[mod1(j[1,threadid()] + l, J[1]), mod1(j[2,threadid()] + m, J[2]), threadid()] += Shape(order, -y[1,threadid()] + l) * Shape(order, -y[2,threadid()] + m)
                 end
               end
             end
@@ -257,7 +258,7 @@ function get_density_threads_2D!(u, n, par, shift)
   @threads for j in 1:J[2]
             for i in 1:J[1]
               for t in 1:nthreads()
-                @inbounds n[i,j] += Tn[i,j,t]/n0 # the dx here is from the different definition from the paper
+                n[i,j] += Tn[i,j,t]/n0 # the dx here is from the different definition from the paper
               end
             end
           end
@@ -329,37 +330,6 @@ function get_current_rel!(u, S, par_grid)
   return S[:] # allready normalized with n0
 end
 
-
-    
-function get_current_rel_2D!(u, S, par_grid)
-  N, Box, J, order = par_grid 
-  D = 2
-   if D != length(J) 
-    error("dimension mismach")
-   end
-  #vol = volume(Box)
-  fill!(S,[0.0,0.0])
-  #n0 = N/vol # correct expression but not needed
-  n0 = N
-  for i in 1:N
-    s = (i-1)*2D + 1
-    r = view(u,s:s+D-1)
-    p = view(u,s+D:s+2*D-1) # in the relativistic version we compute p instead of v
-    j = [1,1]
-    y = [0.0,0.0]
-    @inbounds j, y = get_index_and_y!(j,y,r,J,Box)
-    #@inbounds v = p2v(p) / vol / n0 # correct but can be made simpler
-    @inbounds v = p2v(p) / n0 # dividimos aquí para hacerlo más eficiente.
-    for l in (-order):order 
-      for m in (-order):order
-      @inbounds S[mod1(j[1] + l, J[1]), mod1(j[2] + m, J[2])] += Shape(order, -y[1] + l) * Shape(order, -y[2] + m) * v;
-      end
-    end
-  end
-  return S[:,:] # allready normalized with n0
-end
-
-
 function get_current_rel_threads!(u, S, p)
   par_grid, TS = p
   N, L, J, dx, order = par_grid
@@ -393,6 +363,85 @@ function get_current_rel_threads!(u, S, p)
   end
   S[:]
 end
+    
+function get_current_rel_2D!(u, S, par_grid;shift=0.0)
+  N, Box, J, order = par_grid 
+  D = 2
+   if D != length(J) 
+    error("dimension mismach")
+   end
+  #vol = volume(Box)
+  fill!(S,[0.0,0.0])
+  v = Array{Float64}(undef,2)
+  #n0 = N/vol # correct expression but not needed
+  n0 = N
+  for i in 1:N
+    s = (i-1)*2D + 1
+    r = view(u,s:s+D-1)
+    p = view(u,s+D:s+2*D-1) # in the relativistic version we compute p instead of v
+    j = [1,1]
+    y = [0.0,0.0]
+    @inbounds j, y = get_index_and_y!(j,y,r,J,Box)
+    @inbounds  y[:,threadid()] .= y[:,threadid()] .- shift # shift must be the same in all directions!
+    #@inbounds v = p2v(p) / vol / n0 # correct but can be made simpler
+    @inbounds v = p2v(p) / n0 # dividimos aquí para hacerlo más eficiente.
+    for l in (-order):order 
+      for m in (-order):order
+      @inbounds S[mod1(j[1] + l, J[1]), mod1(j[2] + m, J[2])] += Shape(order, -y[1] + l) * Shape(order, -y[2] + m) * v;
+      end
+    end
+  end
+  return S[:,:] # allready normalized with n0
+end
+
+function get_current_threads_2D!(u, S, par; shift=0.0)
+  #par_grid, Tn, j, y = par # no vale la pena en cuanto a tiempo ni memoria
+  par_grid, TS = par
+  N, Box, J, order = par_grid
+  D = 2
+  if D != length(J) 
+    error("dimension mismach")
+   end
+  #u_r = Array{Float64}(undef,(D,nthreads()))
+  j = Array{Int64}(undef,2,nthreads())
+  j .= 1
+  y = Array{Float64}(undef,2,nthreads())
+  y .= 0.0
+  v = Array{Float64}(undef,2,nthreads())
+  TS .= 0.0 
+  #s = [0 for i in 1:nthreads()]
+  n0 = N
+  # Evaluate number density.
+  @threads  for i in 1:N
+              #s = (i-1)*2D + 1
+              #r = view(u,s:s+D-1)
+              #p = view(u,s+D:s+2*D-1) # in the relativistic version we compute p instead of v
+      @inbounds v[:,threadid()] = p2v(u[i*2D - D + 1:i*2D]) / n0 # dividimos aquí para hacerlo más eficiente.
+              #s[threadid()] = (i-1)*2D + 1
+              #u_r[:,threadid()] = view(u,s[threadid()]:(s[threadid()]+D-1))
+              #j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u_r[:,threadid()],J , Box) 
+      @inbounds j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u[(i-1)*2D + 1:(i-1)*2D + D],J , Box) 
+      @inbounds y[:,threadid()] .= y[:,threadid()] .- shift # shift must be the same in all directions!
+              for l in (-order):order 
+                for m in (-order):order
+      @inbounds TS[:,mod1(j[1,threadid()] + l, J[1]), mod1(j[2,threadid()] + m, J[2]), threadid()] += Shape(order, -y[1,threadid()] + l) * Shape(order, -y[2,threadid()] + m)*v[:,threadid()]
+                end
+              end
+            end
+  fill!(S,[0.0,0.0])
+  #S .= [0.0,0.0]
+  #@show n, Tn
+  @threads for j in 1:J[2]
+            for i in 1:J[1]
+              for t in 1:nthreads()
+      @inbounds S[i,j] += TS[:,i,j,t] # the dx here is from the different definition from the paper
+              end
+            end
+          end
+  #return S[:,:] # return rho directly (we need to subtract 1 in cases where we assume positive particles, but this is done elsewhere.)
+end
+
+
 
 function get_temperature(u,N;m=1)
   return m*var(u[N+1:2N])
@@ -539,6 +588,15 @@ function get_index_and_y!(j::Array{Int64,1}, y::Array{Float64,1}, r, J::Tuple,Bo
     j[i] = floor(Int,y[i]) + 1
     y[i] = (y[i]%1)
   end
+  return j[:], y[:]
+end
+
+function get_index_and_y_alt!(j::Array{Int64,1}, y::Array{Float64,1}, r, J::Tuple,Box::Tuple)
+  J_ar = [i for i in J]
+  Box_ar = [i for i in Box] 
+    y .=  (r./(Box_ar[2:2:end] - Box_ar[1:2:end-1]).*J_ar .+ J_ar).%J_ar
+    j .= floor.(Int,y) .+ 1
+    y .= mod1.(y,1)
   #return j[:], y[:]
 end
 
