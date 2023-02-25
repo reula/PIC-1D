@@ -398,7 +398,7 @@ function get_current_threads_2D!(u, S, par; shift=0.0)
   #par_grid, Tn, j, y = par # no vale la pena en cuanto a tiempo ni memoria
   par_grid, TS = par
   N, Box, J, order = par_grid
-  D = 2
+  D = 2::Int64
   if D != length(J) 
     error("dimension mismach")
    end
@@ -412,7 +412,7 @@ function get_current_threads_2D!(u, S, par; shift=0.0)
   #s = [0 for i in 1:nthreads()]
   n0 = N
   # Evaluate number density.
-  @threads  for i in 1:N
+  @fastmath @threads for i in 1:N
               #s = (i-1)*2D + 1
               #r = view(u,s:s+D-1)
               #p = view(u,s+D:s+2*D-1) # in the relativistic version we compute p instead of v
@@ -431,10 +431,10 @@ function get_current_threads_2D!(u, S, par; shift=0.0)
   fill!(S,[0.0,0.0])
   #S .= [0.0,0.0]
   #@show n, Tn
-  @threads for j in 1:J[2]
+  @fastmath @threads for j in 1:J[2]
             for i in 1:J[1]
               for t in 1:nthreads()
-      @inbounds S[i,j] += TS[:,i,j,t] # the dx here is from the different definition from the paper
+               @inbounds  S[i,j] += TS[:,i,j,t] # the dx here is from the different definition from the paper
               end
             end
           end
