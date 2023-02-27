@@ -441,6 +441,10 @@ function get_current_threads_2D!(u, S, par; shift=0.0)
   #return S[:,:] # return rho directly (we need to subtract 1 in cases where we assume positive particles, but this is done elsewhere.)
 end
 
+"""
+version of get_current_threads_2D but with shorter stencils and different indexing for the arrays.
+The output is an array of type (2,J1,J2). Checked and working OK against the other version and against the serial version.
+"""
 function get_current_threads_2D_alt!(u::Array{Float64,1}, S::Array{Float64,3}, par; shift=0.0) #WITH DIFFERENT LAYOUT
   #par_grid, Tn, j, y = par # no vale la pena en cuanto a tiempo ni memoria
   par_grid, TS = par
