@@ -446,6 +446,7 @@ function get_current_threads_2D_alt!(u::Array{Float64,1}, S::Array{Float64,3}, p
   par_grid, TS = par
   N, Box, J, order = par_grid
   D = 2::Int64
+  bound = Int64(ceil(order/2))
   if D != length(J) 
     error("dimension mismach")
    end
@@ -469,8 +470,8 @@ function get_current_threads_2D_alt!(u::Array{Float64,1}, S::Array{Float64,3}, p
               #j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u_r[:,threadid()],J , Box) 
       @inbounds j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u[(i-1)*2D + 1:(i-1)*2D + D],J , Box) 
       @inbounds y[:,threadid()] .= y[:,threadid()] .- shift # shift must be the same in all directions!
-              for l in (-order):order 
-                for m in (-order):order
+              for l in (-bound):(bound+1) 
+                for m in (-bound):(bound+1)
       @inbounds TS[threadid(),:,mod1(j[1,threadid()] + l, J[1]), mod1(j[2,threadid()] + m, J[2])] += Shape(order, -y[1,threadid()] + l) * Shape(order, -y[2,threadid()] + m)*v[:,threadid()]
                 end
               end
