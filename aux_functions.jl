@@ -394,6 +394,9 @@ function get_current_rel_2D!(u, S, par_grid;shift=0.0)
   return S[:,:] # allready normalized with n0
 end
 
+"""
+using @fastmath makes errors!
+"""
 function get_current_threads_2D!(u, S, par; shift=0.0)
   #par_grid, Tn, j, y = par # no vale la pena en cuanto a tiempo ni memoria
   par_grid, TS = par
@@ -412,29 +415,29 @@ function get_current_threads_2D!(u, S, par; shift=0.0)
   #s = [0 for i in 1:nthreads()]
   n0 = N
   # Evaluate number density.
-  @fastmath @threads for i in 1:N
+   @threads for i in 1:N
               #s = (i-1)*2D + 1
               #r = view(u,s:s+D-1)
               #p = view(u,s+D:s+2*D-1) # in the relativistic version we compute p instead of v
-      @inbounds v[:,threadid()] = p2v(u[i*2D - D + 1:i*2D]) / n0 # dividimos aquí para hacerlo más eficiente.
+       v[:,threadid()] = p2v(u[i*2D - D + 1:i*2D]) / n0 # dividimos aquí para hacerlo más eficiente.
               #s[threadid()] = (i-1)*2D + 1
               #u_r[:,threadid()] = view(u,s[threadid()]:(s[threadid()]+D-1))
               #j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u_r[:,threadid()],J , Box) 
-      @inbounds j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u[(i-1)*2D + 1:(i-1)*2D + D],J , Box) 
-      @inbounds y[:,threadid()] .= y[:,threadid()] .- shift # shift must be the same in all directions!
+       j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u[(i-1)*2D + 1:(i-1)*2D + D],J , Box) 
+       y[:,threadid()] .= y[:,threadid()] .- shift # shift must be the same in all directions!
               for l in (-order):order 
                 for m in (-order):order
-      @inbounds TS[:,mod1(j[1,threadid()] + l, J[1]), mod1(j[2,threadid()] + m, J[2]), threadid()] += Shape(order, -y[1,threadid()] + l) * Shape(order, -y[2,threadid()] + m)*v[:,threadid()]
+       TS[:,mod1(j[1,threadid()] + l, J[1]), mod1(j[2,threadid()] + m, J[2]), threadid()] += Shape(order, -y[1,threadid()] + l) * Shape(order, -y[2,threadid()] + m)*v[:,threadid()]
                 end
               end
             end
   fill!(S,[0.0,0.0])
   #S .= [0.0,0.0]
   #@show n, Tn
-  @fastmath @threads for j in 1:J[2]
+  @threads for j in 1:J[2]
             for i in 1:J[1]
               for t in 1:nthreads()
-               @inbounds  S[i,j] += TS[:,i,j,t] # the dx here is from the different definition from the paper
+                 S[i,j] += TS[:,i,j,t] # the dx here is from the different definition from the paper
               end
             end
           end
@@ -703,11 +706,14 @@ They have support for -(order+1)/2 =< y =< (order+1)/2
   elseif order ==1
     return  (y <= 1) ? 1 - y : 0
   elseif order == 2
-    return (y <= 1/2) ? 3/4 - y^2  : (((y > 1/2) && (y <= 3/2)) ? (3 - 2*y)^2 / 8 : 0)
+    #return (y <= 1/2) ? 3/4 - y^2  : (((y > 1/2) && (y <= 3/2)) ? (3 - 2*y)^2 / 8 : 0)
+    return (y <= 1/2) ? 3/4 - y^2  : (((y <= 3/2)) ? (3 - 2*y)^2 / 8 : 0)
   elseif order == 3
-    return (y <= 1) ? 2/3 - y^2 + y^3 / 2 : (((y > 1) && (y <= 2)) ? (2 - y)^3 / 6 : 0)
+    #return (y <= 1) ? 2/3 - y^2 + y^3 / 2 : (((y > 1) && (y <= 2)) ? (2 - y)^3 / 6 : 0)
+    return (y <= 1) ? 2/3 - y^2 + y^3 / 2 : ((y <= 2) ? (2 - y)^3 / 6 : 0)
   elseif order == 4
-    return (y <= 1/2) ? 115/192 - 5y^2/8 + y^4/4 : (((y > 1/2) && (y <= 3/2)) ? (55 + 20y -120y^2 + 80y^3 - 16y^4)/96 : (((y > 3/2) && (y < 5/2)) ? (5 - 2y)^4/384 : 0))
+    #return (y <= 1/2) ? 115/192 - 5y^2/8 + y^4/4 : (((y > 1/2) && (y <= 3/2)) ? (55 + 20y -120y^2 + 80y^3 - 16y^4)/96 : (((y > 3/2) && (y < 5/2)) ? (5 - 2y)^4/384 : 0))
+    return (y <= 1/2) ? 115/192 - 5y^2/8 + y^4/4 : (((y <= 3/2)) ? (55 + 20y -120y^2 + 80y^3 - 16y^4)/96 : (((y < 5/2)) ? (5 - 2y)^4/384 : 0))
   elseif order == 5
     #return (y <= 1) ? 11/20 - y^2/2 + y^4/4 - y^5/12 : (((y > 1) && (y <= 2)) ? 17/40 + 5y/8 - 7y^2/4 + 5y^3/4 - 3y^4/8 + y^5/24 : (((y > 2) && (y < 3)) ? (3 - y)^5/120 : 0))
     return (y <= 1) ? 11/20 - y^2/2 + y^4/4 - y^5/12 : (((y <= 2)) ? 17/40 + 5y/8 - 7y^2/4 + 5y^3/4 - 3y^4/8 + y^5/24 : (((y < 3)) ? (3 - y)^5/120 : 0))
