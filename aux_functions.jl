@@ -441,6 +441,56 @@ function get_current_threads_2D!(u, S, par; shift=0.0)
   #return S[:,:] # return rho directly (we need to subtract 1 in cases where we assume positive particles, but this is done elsewhere.)
 end
 
+function get_current_threads_2D_alt!(u::Array{Float64,1}, S::Array{Float64,3}, par; shift=0.0) #WITH DIFFERENT LAYOUT
+  #par_grid, Tn, j, y = par # no vale la pena en cuanto a tiempo ni memoria
+  par_grid, TS = par
+  N, Box, J, order = par_grid
+  D = 2::Int64
+  if D != length(J) 
+    error("dimension mismach")
+   end
+  #u_r = Array{Float64}(undef,(D,nthreads()))
+  j = Array{Int64}(undef,2,nthreads())
+  j .= 1
+  y = Array{Float64}(undef,2,nthreads())
+  y .= 0.0
+  v = Array{Float64}(undef,2,nthreads())
+  TS .= 0.0 
+  #s = [0 for i in 1:nthreads()]
+  n0 = N
+  # Evaluate number density.
+  @fastmath @threads for i in 1:N
+              #s = (i-1)*2D + 1
+              #r = view(u,s:s+D-1)
+              #p = view(u,s+D:s+2*D-1) # in the relativistic version we compute p instead of v
+      @inbounds v[:,threadid()] = p2v(u[i*2D - D + 1:i*2D]) / n0 # dividimos aquí para hacerlo más eficiente.
+              #s[threadid()] = (i-1)*2D + 1
+              #u_r[:,threadid()] = view(u,s[threadid()]:(s[threadid()]+D-1))
+              #j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u_r[:,threadid()],J , Box) 
+      @inbounds j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u[(i-1)*2D + 1:(i-1)*2D + D],J , Box) 
+      @inbounds y[:,threadid()] .= y[:,threadid()] .- shift # shift must be the same in all directions!
+              for l in (-order):order 
+                for m in (-order):order
+      @inbounds TS[threadid(),:,mod1(j[1,threadid()] + l, J[1]), mod1(j[2,threadid()] + m, J[2])] += Shape(order, -y[1,threadid()] + l) * Shape(order, -y[2,threadid()] + m)*v[:,threadid()]
+                end
+              end
+            end
+
+  fill!(S,Float64(0.0))
+  #S .= [0.0,0.0]
+  #@show n, Tn
+  @fastmath @threads for t in 1:nthreads()
+            for j in 1:J[2]
+              for i in 1:J[1] 
+                for l in 1:2
+                @inbounds  S[l,i,j] += TS[t,l,i,j] # the dx here is from the different definition from the paper
+                end
+              end
+            end
+          end
+  #return S[:,:] # return rho directly (we need to subtract 1 in cases where we assume positive particles, but this is done elsewhere.)
+end
+
 
 
 function get_temperature(u,N;m=1)
