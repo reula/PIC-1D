@@ -60,7 +60,8 @@ function get_ϕ!(ϕ, ρ, κ)
   # Calculate Fourier transform of u
 
   V[1] =  0.
-  for j in  2:(J÷2+1)
+  #for j in  2:(J÷2+1)
+  for j in 2:size(V,1) 
     V[j] = - V[j] / (j-1)^2 / κ^2
   end
 
@@ -68,27 +69,63 @@ function get_ϕ!(ϕ, ρ, κ)
   ϕ[:] = irfft(V,J)
 end
 
+"""
+Solves the Poisson equation in D = 1,2, and 3 dimensions with homogeneous boundary conditions
+in a rectangular grid.
+The solution is writen in the matrix ϕ, and the data in the matrix ρ, 
+Box is the square box where the solution is looked at.
+Checked in poisson.ipynb for D = 1,2,3
+"""
 function get_ϕ_D!(ϕ, ρ, Box)
   #V = fill(0.0+im*0.,J) 
   #U = fill(0.0+im*0.,J÷2+1) 
   J = size(ρ)
-  D = length(Box)÷2
+  D = length(J)
+  
   Box_array = [i for i in Box]
+
   κ = 2π./(Box_array[2:2:end] - Box_array[1:2:end-1])
+
   # Fourier transform source term
   V = rfft(ρ)
 
   # Calculate Fourier transform of u
 
-  V[1,1] =  0.
-  for i in  2:(J[1]÷2+1)
-    for j in 2:(J[2]÷2+1)
-      V[i,j] = - V[i,j] / ((i-1)^2 / κ[1]^2 + (j-1)^2 / κ[2]^2)
-    end
-  end
+    k1 = rfftfreq(J[1]).*κ[1]*J[1]
 
-  # Inverse Fourier transform to obtain u
-  ϕ[:,:] = irfft(V,J)
+    if D==1
+      for i in 2:size(V,1)
+          V[i] = - V[i] / k1[i]^2
+      end
+      V[1] = 0.0
+      ϕ[:] = irfft(V,J[1])
+    elseif D==2
+      k2 = fftfreq(J[2]).*κ[2]*J[2]
+      for i in 1:size(V,1)
+        for j in 1:size(V,2)
+          V[i,j] = - V[i,j] / (k1[i]^2 + k2[j]^2 + eps(1.0))
+        end
+      end
+    V[1,1] =  0.0
+    # Inverse Fourier transform to obtain u
+    ϕ[:,:] = irfft(V,J[1])
+    elseif D==3
+      k2 = fftfreq(J[2]).*κ[2]*J[2]
+      k3 = fftfreq(J[3]).*κ[3]*J[3]
+      for i in 1:size(V,1)
+        for j in 1:size(V,2)
+          for k in 1:size(V,3)
+          V[i,j,k] = - V[i,j,k] / (k1[i]^2 + k2[j]^2 + k3[k]^2 + eps(1.0))
+          end
+        end
+      end
+    V[1,1,1] = 0.0
+    ϕ[:,:,:] = irfft(V,J[1])
+    else
+      error("not implemented for D=$D")
+    end
+  
+  
 end
 
 """
@@ -115,6 +152,77 @@ function filter_constant!(E)
   V = rfft(E)
   V[1] = 0.0 #extract the first component
   E[:] = irfft(V,J)
+end
+
+"""
+Computes directly the Electric field in a Box with the potential with homogeneous Dirichlet conditions.
+Cheked for 1 and 2 dimensions in poisson.ipynb
+"""
+function get_E!(E, ρ ,Box)
+  J = size(ρ)
+  D = length(J)
+  
+  Box_array = [i for i in Box]
+
+  κ = 2π./(Box_array[2:2:end] - Box_array[1:2:end-1])
+
+  # Fourier transform source term
+  V = rfft(ρ)
+
+  # Calculate Fourier transform of u
+
+    k1 = rfftfreq(J[1]).*κ[1]*J[1]
+
+    if D==1
+      Ek = Array{ComplexF64,D}(undef,size(V))
+      for i in 2:size(V,1)
+          Ek[i] = im * V[i] / k1[i]
+      end
+      Ek[1] = 0.0       
+      E[:] = irfft(Ek,J[1])
+
+    elseif D==2
+      @show J, κ
+      k2 = fftfreq(J[2]).*κ[2]*J[2]
+      Ek1 = Array{ComplexF64,D}(undef,(size(V)))
+      Ek2 = Array{ComplexF64,D}(undef,(size(V)))
+      for i in 1:size(V,1)
+        for j in 1:size(V,2)
+          Ek1[i,j] = V[i,j] / (k1[i]^2 + k2[j]^2 + eps(1.0)) * im *k1[i]
+          Ek2[i,j] = V[i,j] / (k1[i]^2 + k2[j]^2 + eps(1.0)) * im *k2[j]
+        end
+      end
+      Ek1[1,1] =  0.0 + im*0.0;
+      Ek2[1,1] =  0.0 + im*0.0; 
+      # Inverse Fourier transform to obtain u
+      E[1,:,:] = irfft(Ek1,J[1])
+      E[2,:,:] = irfft(Ek2,J[1])
+    elseif D==3
+      k2 = fftfreq(J[2]).*κ[2]*J[2]
+      k3 = fftfreq(J[3]).*κ[3]*J[3]
+      Ek1 = Array{ComplexF64,D}(undef,(size(V)))
+      Ek2 = Array{ComplexF64,D}(undef,(size(V)))
+      Ek3 = Array{ComplexF64,D}(undef,(size(V)))
+      for i in 1:size(V,1)
+        for j in 1:size(V,2)
+          for k in 1:size(V,3)
+          Ek1[i,j,k] = V[i,j,k] / (k1[i]^2 + k2[j]^2 + k3[k]^2 + eps(1.0)) * im * k1[i]
+          Ek2[i,j,k] = V[i,j,k] / (k1[i]^2 + k2[j]^2 + k3[k]^2 + eps(1.0)) * im * k2[j]
+          Ek3[i,j,k] = V[i,j,k] / (k1[i]^2 + k2[j]^2 + k3[k]^2 + eps(1.0)) * im * k3[k]
+          end
+        end
+      end
+      Ek1[1,1] =  0.0 + im*0.0; Ek2[1,1] =  0.0 + im*0.0; Ek3[1,1] =  0.0 + im*0.0; 
+      E[1,:,:] = irfft(Ek1,J[1])
+      E[2,:,:] = irfft(Ek2,J[1])
+      E[3,:,:] = irfft(Ek3,J[1])
+    else
+      error("not implemented for D=$D")
+    end
+  
+  
+
+  
 end
 
 function compare_electric_field_constraints(v,j,par_grid, par_evolv, run_name, save_plots)
