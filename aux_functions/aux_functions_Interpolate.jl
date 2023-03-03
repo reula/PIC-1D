@@ -5,9 +5,9 @@ According the SHARP the second is better. Since it keeps momentum conservation.
 Modified so as to use the smallest stencils.
 """
 @inline function Interpolate_1(order, vector, x, J, L)
-  
   #stencil = order÷2 
   stencil = Int64(ceil((order+1)/2))
+  #stencil = order
   j, y = get_index_and_y(x,J,L)
   vi = 0.0
     for l in (-stencil):(stencil +1)
@@ -18,7 +18,7 @@ end
 
 @inline function Interpolate_2(order, vector, x, J, L)
   #stencil = (order+1)÷2
-  stencil = Int64(ceil((order+1)/2))
+  stencil = Int64(ceil((order+2)/2))
   j, y = get_index_and_y(x,J,L)
   vi = 0.0
     for l in (-stencil):(stencil) 
@@ -59,10 +59,15 @@ end
 @inline function Interpolate_1(order::Int64, vector::Array{Float64}, x, J::Tuple, Box::Tuple)
   #stencil = order÷2
   stencil = Int64(ceil((order+1)/2))
-  j, y = get_index_and_y!(x,J,Box)
-  vi = 0.0
+  j = [1,1]
+  y = [0.0,0.0]
+  @inbounds j, y = get_index_and_y!(j,y,x,J,Box)
+  #j, y = get_index_and_y!(x,J,Box)
+  vi .= 0.0
     for l in (-stencil):(stencil +1)
-      vi += vector[mod1(j+l,J)] * W(order, -y + l)
+      for m in (-stencil):(stencil +1)
+        vi += vector[mod1(j[1]+l,J),mod1(j[2]+m,J[2])] * W(order, -y[1] + l) * W(order, -y[2] + m)
+      end
     end
   return vi
 end

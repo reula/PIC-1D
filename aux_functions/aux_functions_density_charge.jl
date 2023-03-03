@@ -217,7 +217,7 @@ function get_current_rel_2D!(u, S, par_grid;shift=0.0)
     j = [1,1]
     y = [0.0,0.0]
     @inbounds j, y = get_index_and_y!(j,y,r,J,Box)
-    @inbounds  y[:,threadid()] .= y[:,threadid()] .- shift # shift must be the same in all directions!
+    @inbounds  y[:] .= y[:] .- shift # shift must be the same in all directions!
     #@inbounds v = p2v(p) / vol / n0 # correct but can be made simpler
     @inbounds v = p2v(p) / n0 # dividimos aquí para hacerlo más eficiente.
     for l in (-bound):(bound+1) 
@@ -232,7 +232,7 @@ end
 """
 using @fastmath makes errors!
 """
-function get_current_threads_2D!(u, S, par; shift=0.0)
+function get_current_threads_2D_vector!(u, S, par; shift=0.0)
   #par_grid, Tn, j, y = par # no vale la pena en cuanto a tiempo ni memoria
   par_grid, TS = par
   N, Box, J, order = par_grid
@@ -285,7 +285,7 @@ end
 version of get_current_threads_2D but with shorter stencils and different indexing for the arrays.
 The output is an array of type (2,J1,J2). Checked and working OK against the other version and against the serial version.
 """
-function get_current_threads_2D_alt!(u::Array{Float64,1}, S::Array{Float64,3}, par; shift=0.0) #WITH DIFFERENT LAYOUT
+function get_current_threads_2D!(u::Array{Float64,1}, S::Array{Float64,3}, par; shift=0.0) #WITH DIFFERENT LAYOUT
   #par_grid, Tn, j, y = par # no vale la pena en cuanto a tiempo ni memoria
   par_grid, TS = par
   N, Box, J, order = par_grid
