@@ -1,5 +1,5 @@
 using BenchmarkTools
-const N = 2_000::Int64
+const N = 2_000_000::Int64
 const J = (100::Int64,200::Int64)
 const Box = (0.0::Float64,1.0::Float64,0.0::Float64,1.0::Float64)
 const order = 5::Int64
