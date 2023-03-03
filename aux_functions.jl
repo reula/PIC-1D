@@ -60,7 +60,8 @@ function get_ϕ!(ϕ, ρ, κ)
   # Calculate Fourier transform of u
 
   V[1] =  0.
-  for j in  2:(J÷2+1)
+  #for j in  2:(J÷2+1)
+  for j in 2:size(V,1) 
     V[j] = - V[j] / (j-1)^2 / κ^2
   end
 
@@ -68,27 +69,63 @@ function get_ϕ!(ϕ, ρ, κ)
   ϕ[:] = irfft(V,J)
 end
 
+"""
+Solves the Poisson equation in D = 1,2, and 3 dimensions with homogeneous boundary conditions
+in a rectangular grid.
+The solution is writen in the matrix ϕ, and the data in the matrix ρ, 
+Box is the square box where the solution is looked at.
+Checked in poisson.ipynb for D = 1,2,3
+"""
 function get_ϕ_D!(ϕ, ρ, Box)
   #V = fill(0.0+im*0.,J) 
   #U = fill(0.0+im*0.,J÷2+1) 
   J = size(ρ)
-  D = length(Box)÷2
+  D = length(J)
+  
   Box_array = [i for i in Box]
+
   κ = 2π./(Box_array[2:2:end] - Box_array[1:2:end-1])
+
   # Fourier transform source term
   V = rfft(ρ)
 
   # Calculate Fourier transform of u
 
-  V[1,1] =  0.
-  for i in  2:(J[1]÷2+1)
-    for j in 2:(J[2]÷2+1)
-      V[i,j] = - V[i,j] / ((i-1)^2 / κ[1]^2 + (j-1)^2 / κ[2]^2)
-    end
-  end
+    k1 = rfftfreq(J[1]).*κ[1]*J[1]
 
-  # Inverse Fourier transform to obtain u
-  ϕ[:,:] = irfft(V,J)
+    if D==1
+      for i in 2:size(V,1)
+          V[i] = - V[i] / k1[i]^2
+      end
+      V[1] = 0.0
+      ϕ[:] = irfft(V,J[1])
+    elseif D==2
+      k2 = fftfreq(J[2]).*κ[2]*J[2]
+      for i in 1:size(V,1)
+        for j in 1:size(V,2)
+          V[i,j] = - V[i,j] / (k1[i]^2 + k2[j]^2 + eps(1.0))
+        end
+      end
+    V[1,1] =  0.0
+    # Inverse Fourier transform to obtain u
+    ϕ[:,:] = irfft(V,J[1])
+    elseif D==3
+      k2 = fftfreq(J[2]).*κ[2]*J[2]
+      k3 = fftfreq(J[3]).*κ[3]*J[3]
+      for i in 1:size(V,1)
+        for j in 1:size(V,2)
+          for k in 1:size(V,3)
+          V[i,j,k] = - V[i,j,k] / (k1[i]^2 + k2[j]^2 + k3[k]^2 + eps(1.0))
+          end
+        end
+      end
+    V[1,1,1] = 0.0
+    ϕ[:,:,:] = irfft(V,J[1])
+    else
+      error("not implemented for D=$D")
+    end
+  
+  
 end
 
 """
@@ -115,6 +152,77 @@ function filter_constant!(E)
   V = rfft(E)
   V[1] = 0.0 #extract the first component
   E[:] = irfft(V,J)
+end
+
+"""
+Computes directly the Electric field in a Box with the potential with homogeneous Dirichlet conditions.
+Cheked for 1 and 2 dimensions in poisson.ipynb
+"""
+function get_E!(E, ρ ,Box)
+  J = size(ρ)
+  D = length(J)
+  
+  Box_array = [i for i in Box]
+
+  κ = 2π./(Box_array[2:2:end] - Box_array[1:2:end-1])
+
+  # Fourier transform source term
+  V = rfft(ρ)
+
+  # Calculate Fourier transform of u
+
+    k1 = rfftfreq(J[1]).*κ[1]*J[1]
+
+    if D==1
+      Ek = Array{ComplexF64,D}(undef,size(V))
+      for i in 2:size(V,1)
+          Ek[i] = im * V[i] / k1[i]
+      end
+      Ek[1] = 0.0       
+      E[:] = irfft(Ek,J[1])
+
+    elseif D==2
+      @show J, κ
+      k2 = fftfreq(J[2]).*κ[2]*J[2]
+      Ek1 = Array{ComplexF64,D}(undef,(size(V)))
+      Ek2 = Array{ComplexF64,D}(undef,(size(V)))
+      for i in 1:size(V,1)
+        for j in 1:size(V,2)
+          Ek1[i,j] = V[i,j] / (k1[i]^2 + k2[j]^2 + eps(1.0)) * im *k1[i]
+          Ek2[i,j] = V[i,j] / (k1[i]^2 + k2[j]^2 + eps(1.0)) * im *k2[j]
+        end
+      end
+      Ek1[1,1] =  0.0 + im*0.0;
+      Ek2[1,1] =  0.0 + im*0.0; 
+      # Inverse Fourier transform to obtain u
+      E[1,:,:] = irfft(Ek1,J[1])
+      E[2,:,:] = irfft(Ek2,J[1])
+    elseif D==3
+      k2 = fftfreq(J[2]).*κ[2]*J[2]
+      k3 = fftfreq(J[3]).*κ[3]*J[3]
+      Ek1 = Array{ComplexF64,D}(undef,(size(V)))
+      Ek2 = Array{ComplexF64,D}(undef,(size(V)))
+      Ek3 = Array{ComplexF64,D}(undef,(size(V)))
+      for i in 1:size(V,1)
+        for j in 1:size(V,2)
+          for k in 1:size(V,3)
+          Ek1[i,j,k] = V[i,j,k] / (k1[i]^2 + k2[j]^2 + k3[k]^2 + eps(1.0)) * im * k1[i]
+          Ek2[i,j,k] = V[i,j,k] / (k1[i]^2 + k2[j]^2 + k3[k]^2 + eps(1.0)) * im * k2[j]
+          Ek3[i,j,k] = V[i,j,k] / (k1[i]^2 + k2[j]^2 + k3[k]^2 + eps(1.0)) * im * k3[k]
+          end
+        end
+      end
+      Ek1[1,1] =  0.0 + im*0.0; Ek2[1,1] =  0.0 + im*0.0; Ek3[1,1] =  0.0 + im*0.0; 
+      E[1,:,:] = irfft(Ek1,J[1])
+      E[2,:,:] = irfft(Ek2,J[1])
+      E[3,:,:] = irfft(Ek3,J[1])
+    else
+      error("not implemented for D=$D")
+    end
+  
+  
+
+  
 end
 
 function compare_electric_field_constraints(v,j,par_grid, par_evolv, run_name, save_plots)
@@ -184,10 +292,11 @@ function get_density!(u, n, par_grid, shift)
   r = view(u,1:N)
   fill!(n,0.0)
   # Evaluate number density.
+  bound = Int64(ceil(order/2))
   for i in 1:N
     @inbounds j, y = get_index_and_y(r[i],J,L)
     y += - shift
-    for l in (-order):order 
+    for l in (-bound):(bound+1) 
       @inbounds n[mod1(j + l, J)] += Shape(order, -y + l) / dx / n0; # the dx here is from the different definition from the paper
     end
   end
@@ -208,14 +317,15 @@ function get_density_2D!(u, n, par_grid, shift)
   y = [0.0,0.0]
   #@show u
   # Evaluate number density.
+  bound = Int64(ceil(order/2))
   for i in 1:N
     s = (i-1)*2D + 1
     u_r = view(u,s:(s+D-1))
     #@inbounds j, y = get_index_and_y!(j,y,u_r,J,Box)
     @inbounds get_index_and_y!(j,y,u_r,J,Box)
     y .= y .- shift # shift must be the same in all directions!
-    for l in (-order):order 
-      for m in (-order):order
+    for l in (-bound):(bound+1) 
+      for m in (-bound):(bound+1)
       #@inbounds n[mod1(j + l, J)] += Shape(order, -y + l) / dx / n0; # the dx here is from the different definition from the paper
       @inbounds n[mod1(j[1] + l, J[1]), mod1(j[2] + m, J[2])] += Shape(order, -y[1] + l) * Shape(order, -y[2] + m)/ n0
       end
@@ -241,14 +351,15 @@ function get_density_threads_2D!(u, n, par, shift)
   #s = [0 for i in 1:nthreads()]
   n0 = N
   # Evaluate number density.
+  bound = Int64(ceil(order/2))
   @threads  for i in 1:N
               #s[threadid()] = (i-1)*2D + 1
               #u_r[:,threadid()] = view(u,s[threadid()]:(s[threadid()]+D-1))
               #j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u_r[:,threadid()],J , Box) 
               j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u[(i-1)*2D + 1:(i-1)*2D + D],J , Box) 
       @inbounds  y[:,threadid()] .= y[:,threadid()] .- shift # shift must be the same in all directions!
-              for l in (-order):order 
-                for m in (-order):order
+              for l in (-bound):(bound+1)
+                for m in (-bound):(bound+1)
       @inbounds   Tn[mod1(j[1,threadid()] + l, J[1]), mod1(j[2,threadid()] + m, J[2]), threadid()] += Shape(order, -y[1,threadid()] + l) * Shape(order, -y[2,threadid()] + m)
                 end
               end
@@ -272,17 +383,18 @@ function get_density_threads!(u, n, p, shift)
   y = fill(Float64(1.0),nthreads())
   Tn .= zeros(Float64)
   n0 = N/L
+  bound = Int64(ceil(order/2))
   # Evaluate number density.
   @threads for i in 1:N
     @inbounds j[threadid()], y[threadid()] = get_index_and_y(u[i], J, L)
     y[threadid()] += - shift
-    for l in (-order):-j[threadid()]
+    for l in (-bound):-j[threadid()]
       @inbounds Tn[J + j[threadid()] + l, threadid()] += Shape(order, -y[threadid()] + l) 
     end
-    for l in max(-order,-j[threadid()]+1):min(order,J-j[threadid()])
+    for l in max(-bound,-j[threadid()]+1):min((bound+1),J-j[threadid()])
       @inbounds Tn[j[threadid()] + l, threadid()] += Shape(order, -y[threadid()] + l) 
     end
-    for l in J-j[threadid()]+1:order
+    for l in J-j[threadid()]+1:(bound+1)
       @inbounds Tn[j[threadid()] - J + l, threadid()] += Shape(order, -y[threadid()] + l) 
     end
   end
@@ -320,10 +432,11 @@ function get_current_rel!(u, S, par_grid)
   p = view(u,N+1:2N) # in the relativistic version we compute p instead of v
   fill!(S,0.0)
   n0 = N/L
+  bound = Int64(ceil(order/2))
   for i in 1:N
     @inbounds j, y = get_index_and_y(r[i],J,L)
     @inbounds v = p2v(p[i]) / dx / n0 # the dx here is from the different definition from the paper
-    for l in (-order):order 
+    for l in (-bound):(bound+1) 
       @inbounds S[mod1(j + l, J)] += Shape(order, -y + l) * v;
     end
   end
@@ -337,16 +450,17 @@ function get_current_rel_threads!(u, S, p)
   y = fill(Float64(1.0),nthreads())
   TS .= zeros(Float64)
   n0 = N/L
+  bound = Int64(ceil(order/2))
   @threads for i in 1:N
     @inbounds j[threadid()], y[threadid()] = get_index_and_y(u[i], J, L)
     @inbounds v = p2v(u[N+i]) / dx / n0 # the dx here is from the different definition from the paper
-    for l in (-order):-j[threadid()]
+    for l in (-bound):-j[threadid()]
       @inbounds TS[J + j[threadid()] + l, threadid()] += Shape(order, -y[threadid()] + l) * v
     end
-    for l in max(-order,-j[threadid()]+1):min(order,J-j[threadid()])
+    for l in max(-bound,-j[threadid()]+1):min(bound+1,J-j[threadid()])
       @inbounds TS[j[threadid()] + l, threadid()] += Shape(order, -y[threadid()] + l) * v
     end
-    for l in J-j[threadid()]+1:order
+    for l in J-j[threadid()]+1:(bound+1)
       @inbounds TS[j[threadid()] - J + l, threadid()] += Shape(order, -y[threadid()] + l) * v
     end
     #= 
@@ -371,6 +485,7 @@ function get_current_rel_2D!(u, S, par_grid;shift=0.0)
     error("dimension mismach")
    end
   #vol = volume(Box)
+  bound = Int64(ceil(order/2))
   fill!(S,[0.0,0.0])
   v = Array{Float64}(undef,2)
   #n0 = N/vol # correct expression but not needed
@@ -385,8 +500,8 @@ function get_current_rel_2D!(u, S, par_grid;shift=0.0)
     @inbounds  y[:,threadid()] .= y[:,threadid()] .- shift # shift must be the same in all directions!
     #@inbounds v = p2v(p) / vol / n0 # correct but can be made simpler
     @inbounds v = p2v(p) / n0 # dividimos aquí para hacerlo más eficiente.
-    for l in (-order):order 
-      for m in (-order):order
+    for l in (-bound):(bound+1) 
+      for m in (-bound):(bound+1)
       @inbounds S[mod1(j[1] + l, J[1]), mod1(j[2] + m, J[2])] += Shape(order, -y[1] + l) * Shape(order, -y[2] + m) * v;
       end
     end
@@ -394,6 +509,9 @@ function get_current_rel_2D!(u, S, par_grid;shift=0.0)
   return S[:,:] # allready normalized with n0
 end
 
+"""
+using @fastmath makes errors!
+"""
 function get_current_threads_2D!(u, S, par; shift=0.0)
   #par_grid, Tn, j, y = par # no vale la pena en cuanto a tiempo ni memoria
   par_grid, TS = par
@@ -401,7 +519,9 @@ function get_current_threads_2D!(u, S, par; shift=0.0)
   D = 2::Int64
   if D != length(J) 
     error("dimension mismach")
-   end
+  end
+  bound = Int64(ceil(order/2))
+
   #u_r = Array{Float64}(undef,(D,nthreads()))
   j = Array{Int64}(undef,2,nthreads())
   j .= 1
@@ -412,35 +532,39 @@ function get_current_threads_2D!(u, S, par; shift=0.0)
   #s = [0 for i in 1:nthreads()]
   n0 = N
   # Evaluate number density.
-  @fastmath @threads for i in 1:N
+   @threads for i in 1:N
               #s = (i-1)*2D + 1
               #r = view(u,s:s+D-1)
               #p = view(u,s+D:s+2*D-1) # in the relativistic version we compute p instead of v
-      @inbounds v[:,threadid()] = p2v(u[i*2D - D + 1:i*2D]) / n0 # dividimos aquí para hacerlo más eficiente.
+       v[:,threadid()] = p2v(u[i*2D - D + 1:i*2D]) / n0 # dividimos aquí para hacerlo más eficiente.
               #s[threadid()] = (i-1)*2D + 1
               #u_r[:,threadid()] = view(u,s[threadid()]:(s[threadid()]+D-1))
               #j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u_r[:,threadid()],J , Box) 
-      @inbounds j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u[(i-1)*2D + 1:(i-1)*2D + D],J , Box) 
-      @inbounds y[:,threadid()] .= y[:,threadid()] .- shift # shift must be the same in all directions!
-              for l in (-order):order 
-                for m in (-order):order
-      @inbounds TS[:,mod1(j[1,threadid()] + l, J[1]), mod1(j[2,threadid()] + m, J[2]), threadid()] += Shape(order, -y[1,threadid()] + l) * Shape(order, -y[2,threadid()] + m)*v[:,threadid()]
+       j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u[(i-1)*2D + 1:(i-1)*2D + D],J , Box) 
+       y[:,threadid()] .= y[:,threadid()] .- shift # shift must be the same in all directions!
+              for l in (-bound):(bound+1)
+                for m in (-bound):(bound+1)
+       TS[:,mod1(j[1,threadid()] + l, J[1]), mod1(j[2,threadid()] + m, J[2]), threadid()] += Shape(order, -y[1,threadid()] + l) * Shape(order, -y[2,threadid()] + m)*v[:,threadid()]
                 end
               end
             end
   fill!(S,[0.0,0.0])
   #S .= [0.0,0.0]
   #@show n, Tn
-  @fastmath @threads for j in 1:J[2]
+  @threads for j in 1:J[2]
             for i in 1:J[1]
               for t in 1:nthreads()
-               @inbounds  S[i,j] += TS[:,i,j,t] # the dx here is from the different definition from the paper
+                 S[i,j] += TS[:,i,j,t] # the dx here is from the different definition from the paper
               end
             end
           end
   #return S[:,:] # return rho directly (we need to subtract 1 in cases where we assume positive particles, but this is done elsewhere.)
 end
 
+"""
+version of get_current_threads_2D but with shorter stencils and different indexing for the arrays.
+The output is an array of type (2,J1,J2). Checked and working OK against the other version and against the serial version.
+"""
 function get_current_threads_2D_alt!(u::Array{Float64,1}, S::Array{Float64,3}, par; shift=0.0) #WITH DIFFERENT LAYOUT
   #par_grid, Tn, j, y = par # no vale la pena en cuanto a tiempo ni memoria
   par_grid, TS = par
@@ -699,11 +823,14 @@ They have support for -(order+1)/2 =< y =< (order+1)/2
   elseif order ==1
     return  (y <= 1) ? 1 - y : 0
   elseif order == 2
-    return (y <= 1/2) ? 3/4 - y^2  : (((y > 1/2) && (y <= 3/2)) ? (3 - 2*y)^2 / 8 : 0)
+    #return (y <= 1/2) ? 3/4 - y^2  : (((y > 1/2) && (y <= 3/2)) ? (3 - 2*y)^2 / 8 : 0)
+    return (y <= 1/2) ? 3/4 - y^2  : (((y <= 3/2)) ? (3 - 2*y)^2 / 8 : 0)
   elseif order == 3
-    return (y <= 1) ? 2/3 - y^2 + y^3 / 2 : (((y > 1) && (y <= 2)) ? (2 - y)^3 / 6 : 0)
+    #return (y <= 1) ? 2/3 - y^2 + y^3 / 2 : (((y > 1) && (y <= 2)) ? (2 - y)^3 / 6 : 0)
+    return (y <= 1) ? 2/3 - y^2 + y^3 / 2 : ((y <= 2) ? (2 - y)^3 / 6 : 0)
   elseif order == 4
-    return (y <= 1/2) ? 115/192 - 5y^2/8 + y^4/4 : (((y > 1/2) && (y <= 3/2)) ? (55 + 20y -120y^2 + 80y^3 - 16y^4)/96 : (((y > 3/2) && (y < 5/2)) ? (5 - 2y)^4/384 : 0))
+    #return (y <= 1/2) ? 115/192 - 5y^2/8 + y^4/4 : (((y > 1/2) && (y <= 3/2)) ? (55 + 20y -120y^2 + 80y^3 - 16y^4)/96 : (((y > 3/2) && (y < 5/2)) ? (5 - 2y)^4/384 : 0))
+    return (y <= 1/2) ? 115/192 - 5y^2/8 + y^4/4 : (((y <= 3/2)) ? (55 + 20y -120y^2 + 80y^3 - 16y^4)/96 : (((y < 5/2)) ? (5 - 2y)^4/384 : 0))
   elseif order == 5
     #return (y <= 1) ? 11/20 - y^2/2 + y^4/4 - y^5/12 : (((y > 1) && (y <= 2)) ? 17/40 + 5y/8 - 7y^2/4 + 5y^3/4 - 3y^4/8 + y^5/24 : (((y > 2) && (y < 3)) ? (3 - y)^5/120 : 0))
     return (y <= 1) ? 11/20 - y^2/2 + y^4/4 - y^5/12 : (((y <= 2)) ? 17/40 + 5y/8 - 7y^2/4 + 5y^3/4 - 3y^4/8 + y^5/24 : (((y < 3)) ? (3 - y)^5/120 : 0))
