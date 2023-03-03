@@ -156,7 +156,7 @@ end
 
 """
 Computes directly the Electric field in a Box with the potential with homogeneous Dirichlet conditions.
-Cheked for 1 and 2 dimensions in poisson.ipynb
+Cheked for 1, 2 and 3 dimensions in poisson.ipynb
 """
 function get_E!(E, ρ ,Box)
   J = size(ρ)
@@ -182,7 +182,7 @@ function get_E!(E, ρ ,Box)
       E[:] = irfft(Ek,J[1])
 
     elseif D==2
-      @show J, κ
+      #@show J, κ
       k2 = fftfreq(J[2]).*κ[2]*J[2]
       Ek1 = Array{ComplexF64,D}(undef,(size(V)))
       Ek2 = Array{ComplexF64,D}(undef,(size(V)))
@@ -212,10 +212,10 @@ function get_E!(E, ρ ,Box)
           end
         end
       end
-      Ek1[1,1] =  0.0 + im*0.0; Ek2[1,1] =  0.0 + im*0.0; Ek3[1,1] =  0.0 + im*0.0; 
-      E[1,:,:] = irfft(Ek1,J[1])
-      E[2,:,:] = irfft(Ek2,J[1])
-      E[3,:,:] = irfft(Ek3,J[1])
+      Ek1[1,1,1] =  0.0 + im*0.0; Ek2[1,1,1] =  0.0 + im*0.0; Ek3[1,1,1] =  0.0 + im*0.0; 
+      E[1,:,:,:] = irfft(Ek1,J[1])
+      E[2,:,:,:] = irfft(Ek2,J[1])
+      E[3,:,:,:] = irfft(Ek3,J[1])
     else
       error("not implemented for D=$D")
     end
