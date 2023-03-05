@@ -4,7 +4,7 @@ This are interpolation functions for getting the Electric field correct.
 According the SHARP the second is better. Since it keeps momentum conservation.
 Modified so as to use the smallest stencils.
 """
-@inline function Interpolate_1(order, vector, x, J, L)
+@inline function Interpolate_1(order::Int64, vector::Array{Float64,1} x, J::Int64, L::Float64)
   #stencil = order÷2 
   stencil = Int64(ceil((order+1)/2))
   #stencil = order
@@ -16,7 +16,7 @@ Modified so as to use the smallest stencils.
   return vi
 end
 
-@inline function Interpolate_2(order, vector, x, J, L)
+@inline function Interpolate_2(order::Int64, vector, x, J::Int64, L::Float64)
   #stencil = (order+1)÷2
   stencil = Int64(ceil((order+2)/2))
   j, y = get_index_and_y(x,J,L)
@@ -27,9 +27,9 @@ end
   return vi
 end
 """
-Terminado, pero sin probar (tiene algo mal..).
+Tested, OK
 """
-@inline function Interpolate_per(order, vector, x, J, L)
+@inline function Interpolate_per(order::Int64, vector, x, J::Int64, L::Float64)
   stencil = Int64(ceil((order+1)/2))
   j, y = get_index_and_y(x,J,L)
   vi = 0.0
@@ -40,18 +40,31 @@ Terminado, pero sin probar (tiene algo mal..).
       vi += vector[j+l] * W(order, -y + 1/2 + l)
     end
     for l in J-j+1:stencil
-      vi += vector[j+l] * W(order, -y + 1/2 + l)
+      vi += vector[j-J+l] * W(order, -y + 1/2 + l)
     end
     # now we increase j by 1
-    j += 1
-    for l in (-stencil):-j 
-      vi += vector[J+j+l] * W(order, -y + 1/2 + l)
-    end
-    for l in  max(-stencil,-j+1):min(stencil,J-j)
-      vi += vector[j+l] * W(order, -y + 1/2 + l)
-    end
-    for l in J-j+1:stencil
-      vi += vector[j+l] * W(order, -y + 1/2 + l)
+    if j<J
+      j += 1
+      for l in (-stencil):-j 
+        vi += vector[J+j+l] * W(order, -y + 1/2 + l)
+      end
+      for l in  max(-stencil,-j+1):min(stencil,J-j)
+        vi += vector[j+l] * W(order, -y + 1/2 + l)
+      end
+      for l in J-j+1:stencil
+        vi += vector[j-J+l] * W(order, -y + 1/2 + l)
+      end
+    else  
+      j = 1
+      for l in (-stencil):-j 
+        vi += vector[J+j+l] * W(order, -y + 1/2 + l)
+      end
+      for l in  max(-stencil,-j+1):min(stencil,J-j)
+        vi += vector[j+l] * W(order, -y + 1/2 + l)
+      end
+      for l in J-j+1:stencil
+        vi += vector[j-J+l] * W(order, -y + 1/2 + l)
+      end
     end
   return vi / 2
 end
@@ -59,9 +72,10 @@ end
 # D versions 
 
 """
+Multidimensional version 1-2D
 1D checked against the original version
 """
-@inline function Interpolate_1(order::Int64, vector::Array{Float64}, x, J::Tuple, Box::Tuple)
+@inline function Interpolate_1(order::Int64, vector, x, J::Tuple, Box::Tuple)
   #stencil = order÷2
   stencil = Int64(ceil((order+1)/2))
   D = length(J)
@@ -77,7 +91,8 @@ end
     y = [0.0,0.0]
     @inbounds j, y = get_index_and_y!(j,y,x,J,Box)
     #j, y = get_index_and_y!(x,J,Box)
-    vi = 0.0
+    vi = similar(vector[1,1])
+    vi .= 0.0
     for l in (-stencil):(stencil +1)
       for m in (-stencil):(stencil +1)
         vi += vector[mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])] * W(order, -y[1] + l) * W(order, -y[2] + m)
