@@ -2,7 +2,7 @@
 """
 Grid volume
 """
-function volume(Box) 
+function volume_old(Box) 
   if length(Box) == 2
     return abs(Box[2]-Box[1])
   elseif length(Box) == 4
@@ -12,6 +12,12 @@ function volume(Box)
   else 
     error("wrong length for Box")
   end
+end
+
+function volume(Box) 
+  Box_array = [i for i in Box]
+  L = Box_array[2:2:end] - Box_array[1:2:end-1]
+  return prod(L)
 end
 
 """
@@ -30,6 +36,13 @@ function differentials(Box,J,periodic=true)
     end
   end
   return dd[:]
+end
+
+"""
+Volume differential
+"""
+function vol_diff(Box,J,periodic=true)
+  prod(differentials(Box, J))
 end
 
 

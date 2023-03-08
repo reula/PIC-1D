@@ -42,4 +42,6 @@
   
   @inline function get_Fields!(E,B,u,N,J)
     E = get_E(u,N,J)
+    B = get_B(u,N,J)
+  end
   

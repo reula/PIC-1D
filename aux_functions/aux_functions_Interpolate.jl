@@ -4,7 +4,7 @@ This are interpolation functions for getting the Electric field correct.
 According the SHARP the second is better. Since it keeps momentum conservation.
 Modified so as to use the smallest stencils.
 """
-@inline function Interpolate_1(order::Int64, vector::Array{Float64,1} x, J::Int64, L::Float64)
+@inline function Interpolate_1(order::Int64, vector::Array{Float64,1}, x, J::Int64, L::Float64)
   #stencil = order÷2 
   stencil = Int64(ceil((order+1)/2))
   #stencil = order
