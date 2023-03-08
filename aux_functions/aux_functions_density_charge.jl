@@ -128,7 +128,7 @@ function get_density_threads!(u, n, p, shift)
 end
 
 
-function get_total_charge(ρ,par)
+function get_total_charge(ρ,par::Tuple)
   J, dx = par
   Q = 0.0
   for i in 1:J
@@ -137,7 +137,7 @@ function get_total_charge(ρ,par)
   return Q * dx
 end
 
-function get_total_charge(ρ,Vol)
+function get_total_charge(ρ,Vol::Float64)
   Q = sum(ρ)*Vol/length(ρ)
 end
 
@@ -199,7 +199,7 @@ function get_current_rel_threads!(u, S, p)
 end
     
 function get_current_rel_2D!(u, S, par_grid;shift=0.0)
-  N, Box, J, order = par_grid 
+  N, J, Box, order = par_grid 
   D = 2
    if D != length(J) 
     error("dimension mismach")
@@ -288,7 +288,7 @@ The output is an array of type (2,J1,J2). Checked and working OK against the oth
 function get_current_threads_2D!(u::Array{Float64,1}, S::Array{Float64,3}, par; shift=0.0) #WITH DIFFERENT LAYOUT
   #par_grid, Tn, j, y = par # no vale la pena en cuanto a tiempo ni memoria
   par_grid, TS = par
-  N, Box, J, order = par_grid
+  N, J, Box, order = par_grid
   D = 2::Int64
   bound = Int64(ceil(order/2))
   if D != length(J) 

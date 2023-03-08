@@ -20,7 +20,7 @@ function random_sampling_from_distribution(f,f_max,par_f,interval)
  end
 end
 
-function random_sampling_from_distribution(f,f_max,par_f,Box::Tuple)
+function random_sampling_from_distribution_D(f,f_max,par_f,Box::Tuple)
   fmax = f_max(par_f)
   D = length(Box) ÷ 2
   x = zeros(D)
@@ -30,7 +30,7 @@ function random_sampling_from_distribution(f,f_max,par_f,Box::Tuple)
   #  Accept/reject value
   f_v = f(x,par_f)
   x_t = fmax * rand()
-  if (x_t > f_v) return random_sampling_from_distribution(f,f_max,par_f,Box)
+  if (x_t > f_v) return random_sampling_from_distribution_D(f,f_max,par_f,Box)
   else return x[:]
   end
  end
@@ -53,15 +53,14 @@ function build_initial_data(data_name::String, pars, f_x, f_x_max, par_f_x, inte
     vp = zeros(N÷2)
     r = zeros(N)
     
-    
-    for i in 1:N
-    r[i] = random_sampling_from_distribution(f_x,f_x_max,par_f_x,interval_x)
-    end
+      for i in 1:N
+        r[i] = random_sampling_from_distribution(f_x,f_x_max,par_f_x,interval_x)
+      end
     
 
-    for i in 1:N÷2
+      for i in 1:N÷2
         vp[i] = random_sampling_from_distribution(f_p,f_p_max,par_f_p,interval_p)
-    end
+      end
 
     par_dis = [r;vp;-vp];
 
@@ -88,12 +87,12 @@ function build_initial_data_D(data_name::String, pars, f_x, f_x_max, par_f_x, Bo
       # first the space distribution 
 
       for i in 1:N
-        par_dis[(i-1)*2*D+1:(i-1)*2*D+D] = random_sampling_from_distribution(f_x,f_x_max,par_f_x,Box_x)
+        par_dis[(i-1)*2*D+1:(i-1)*2*D+D] = random_sampling_from_distribution_D(f_x,f_x_max,par_f_x,Box_x)
       end
   
       # We set part of the distribution in antisymmetric form so that the total momentum vanishes.
       for i in 1:2D:D*N
-          par_dis[i+D:(i-1)+2D] = random_sampling_from_distribution(f_p,f_p_max,par_f_p,Box_p)
+          par_dis[i+D:(i-1)+2D] = random_sampling_from_distribution_D(f_p,f_p_max,par_f_p,Box_p)
           par_dis[D*N + i+D:D*N + i-1+2D] = - par_dis[i+D:(i-1)+2D]
       end
   
@@ -185,7 +184,7 @@ end
 function f_x(x::Float64,par_f_x) 
     α, mn, L = par_f_x
     k = 2π*mn/L
-    return (1 + α *cos(k'*x))/L
+    return (1 + α *cos(k*x))/L
 end
 
 function f_x_max(par_f_x)
