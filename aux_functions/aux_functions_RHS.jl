@@ -46,12 +46,6 @@ function RHS_D(u,t,p_RHSC)
       E = F[1:2,:,:]
       B = F[3,:,:]
       
-      for i in 1:N        
-        v = p2v(u[range_p(i, D)])
-        @inbounds du[range_x(i, D)] = v # relativistic factor (u is the momentum)
-        @inbounds du[range_p(i, D)] = - Interpolate(order, E - [v[2],-v[1]]*B, u[range_x(i, D)], J, Box)
-      end
-      
       dF = reshape(du[N+1:end],(3,J...))
 
       @threads for i in 1:J[1]
@@ -70,6 +64,16 @@ function RHS_D(u,t,p_RHSC)
             end
         end
       end
+
+      for i in 1:N        
+        v = p2v(u[range_p(i, D)])
+        E[1,:,:] += - v[2]*B[:,:]
+        E[2,:,:] += v[1]*B[:,:]
+        E_v = nestedview(E,1)
+        @inbounds du[range_x(i, D)] = v # relativistic factor (u is the momentum)
+        @inbounds du[range_p(i, D)] = - Interpolate(order, E_v, u[range_x(i, D)], J, Box)
+      end
+
       return du[:]
   end
 

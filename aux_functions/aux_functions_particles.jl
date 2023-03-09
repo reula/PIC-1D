@@ -114,7 +114,7 @@ function Coordinate_test(r,Box::Tuple)
   D = length(Box)÷2
   for d in 1:D
     if minimum(r[d:2D:2D*N]) < Box[2d-1] || maximum(r[d:2D:2D*N]) > Box[2d]
-      error("particle out of Box")
+      error("particle out of Box min=$(minimum(r[d:2D:2D*N])), max=$(maximum(r[d:2D:2D*N]))")
     end
   end
 end
