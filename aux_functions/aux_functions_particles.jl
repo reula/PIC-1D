@@ -137,4 +137,16 @@ function make_periodic!(r,Box::Tuple)
     end
     return r[:]
 end
-  
+
+function get_all_positions(u,D,N)
+  x = zeros(D)
+  pos = Array{Float64,1}(undef,2D*N)
+  for i in N
+    get_positions!(x,i,u[1:2D*N])
+    for l in 1:D
+      pos[i+(l-1)] = x[l]
+    end
+  end
+  return pos[:]
+end
+    
