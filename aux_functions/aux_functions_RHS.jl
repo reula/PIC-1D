@@ -46,7 +46,7 @@ function RHS_D(u,t,p_RHSC)
       E = F[1:2,:,:]
       B = F[3,:,:]
       
-      dF = reshape(du[N+1:end],(3,J...))
+      dF = reshape(du[4N+1:end],(3,J...))
 
       @threads for i in 1:J[1]
         mul!(view(dF,1,i,:),Dy, view(F,3,i,:),one(eltype(F)))
@@ -60,7 +60,7 @@ function RHS_D(u,t,p_RHSC)
       @threads for j in 1:J[2]
         for i in 1:J[1]
             for l in 1:2
-        @inbounds du[l,i,j] +=  S[l,i,j] # particles have negative sign!
+        @inbounds dF[l,i,j] +=  S[l,i,j] # particles have negative sign!
             end
         end
       end
