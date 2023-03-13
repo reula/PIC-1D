@@ -98,7 +98,7 @@ function get_energy_rel(u,p)
 end
 
 function get_energy_rel(u,par; m=1)
-  Box, N, J= p
+  Box, N, J= par
   dx = differentials(Box,J)
   D = length(dx)
   n0 = N/volume(Box)

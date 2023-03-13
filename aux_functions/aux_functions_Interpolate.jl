@@ -123,7 +123,7 @@ Interpolate function for the whole of E + v x B
     y = [0.0,0.0]
     @inbounds j, y = get_index_and_y!(j,y,x,J,Box)
     #j, y = get_index_and_y!(x,J,Box)
-    vi = similar(vector[1,1])
+    vi = similar(E[:,1,1])
     vi .= 0.0
     for l in (-stencil):(stencil +1)
       for m in (-stencil):(stencil +1)
