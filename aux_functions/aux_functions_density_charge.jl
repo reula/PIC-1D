@@ -206,7 +206,8 @@ function get_current_rel_2D!(u, S, par_grid;shift=0.0)
    end
   #vol = volume(Box)
   bound = Int64(ceil(order/2))
-  fill!(S,[0.0,0.0])
+  S .= 0.0
+  #fill!(S,[0.0,0.0])
   v = Array{Float64}(undef,2)
   #n0 = N/vol # correct expression but not needed
   n0 = N
@@ -222,11 +223,11 @@ function get_current_rel_2D!(u, S, par_grid;shift=0.0)
     @inbounds v = p2v(p) / n0 # dividimos aquí para hacerlo más eficiente.
     for l in (-bound):(bound+1) 
       for m in (-bound):(bound+1)
-      @inbounds S[mod1(j[1] + l, J[1]), mod1(j[2] + m, J[2])] += Shape(order, -y[1] + l) * Shape(order, -y[2] + m) * v;
+      @inbounds S[:,mod1(j[1] + l, J[1]), mod1(j[2] + m, J[2])] += Shape(order, -y[1] + l) * Shape(order, -y[2] + m) * v;
       end
     end
   end
-  return S[:,:] # allready normalized with n0
+  return S[:,:,:] # allready normalized with n0
 end
 
 """
