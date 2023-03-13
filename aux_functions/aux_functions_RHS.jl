@@ -32,17 +32,17 @@ end
 
 function RHS_D(u,t,p_RHSC)
     if nthreads() == 1
-      N, J, Box, order, n, S, du, get_density!, get_current_rel_2D!, Interpolate, Dx, Dy = p_RHSC
+      N, J, Box, order, n, S, du, get_density!, get_current, Interpolate, Dx, Dy = p_RHSC
       par_grid = (N, J, Box, order)
-      get_current_rel_2D!(u, S, par_grid)
+      get_current(u, S, par_grid)
     else
-      N, J, Box, order, n, S, du, get_density!, get_current_threads_2D!, Interpolate, TS, Dx, Dy  = p_RHSC
+      N, J, Box, order, n, S, du, get_density!, get_current_threads, Interpolate, TS, Dx, Dy  = p_RHSC
       par_grid = (N, J, Box, order)
-      get_current_threads_2D!(u, S, (par_grid, TS))
+      get_current_threads(u, S, (par_grid, TS))
     end
   
       #E = view(u,2N+1:2N+J)
-      F = reshape(u[N+1:end],(3,J...))
+      F = reshape(u[4N+1:end],(3,J...))
       E = F[1:2,:,:]
       B = F[3,:,:]
       
@@ -67,11 +67,8 @@ function RHS_D(u,t,p_RHSC)
 
       for i in 1:N        
         v = p2v(u[range_p(i, D)])
-        E[1,:,:] += - v[2]*B[:,:]
-        E[2,:,:] += v[1]*B[:,:]
-        E_v = nestedview(E,1)
         @inbounds du[range_x(i, D)] = v # relativistic factor (u is the momentum)
-        @inbounds du[range_p(i, D)] = - Interpolate(order, E_v, u[range_x(i, D)], J, Box)
+        @inbounds du[range_p(i, D)] = - Interpolate(order, E, B, v, u[range_x(i, D)], J, Box)
       end
 
       return du[:]
