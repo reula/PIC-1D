@@ -28,6 +28,7 @@
     D = length(J)
     return reshape(u[range_E(N,J)],(D,J...))
   end
+
   
   @inline function get_B(u,N,J)
     D = length(J)
@@ -44,4 +45,7 @@
     E = get_E(u,N,J)
     B = get_B(u,N,J)
   end
+
+
+  
   

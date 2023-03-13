@@ -132,7 +132,7 @@ Interpolate function for the whole of E + v x B
         vi += EBv * W(order, -y[1] + l) * W(order, -y[2] + m)
       end
     end
-    return vi
+    return vi[:]
   else
     error("Not yet implemented for D=$D")
   end

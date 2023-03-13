@@ -42,11 +42,13 @@ function RHS_D(u,t,p_RHSC)
     end
   
       #E = view(u,2N+1:2N+J)
-      F = reshape(u[4N+1:end],(3,J...))
+      Fu = view(u,4N+1:4N+3*prod(J))
+      F = reshape(Fu,(3,J...))
       E = F[1:2,:,:]
       B = F[3,:,:]
       
-      dF = reshape(du[4N+1:end],(3,J...))
+      dFu = view(u,4N+1:4N+3*prod(J))
+      dF = reshape(dFu,(3,J...))
 
       @threads for i in 1:J[1]
         mul!(view(dF,1,i,:),Dy, view(F,3,i,:),one(eltype(F)))
@@ -60,15 +62,15 @@ function RHS_D(u,t,p_RHSC)
       @threads for j in 1:J[2]
         for i in 1:J[1]
             for l in 1:2
-        @inbounds dF[l,i,j] +=  S[l,i,j] # particles have negative sign!
+         dF[l,i,j] +=  0.0*S[l,i,j] # particles have negative sign!
             end
         end
       end
 
       for i in 1:N        
         v = p2v(u[range_p(i, D)])
-        @inbounds du[range_x(i, D)] = v # relativistic factor (u is the momentum)
-        @inbounds du[range_p(i, D)] = - Interpolate(order, E, B, v, u[range_x(i, D)], J, Box)
+         du[range_x(i, D)] = v # relativistic factor (u is the momentum)
+         du[range_p(i, D)] = - Interpolate(order, E, B, v, u[range_x(i, D)], J, Box)
       end
 
       return du[:]

@@ -110,13 +110,17 @@ function get_energy_rel(u,par; m=1)
     energy_K = energy_K + (sqrt(m^2+p'*p/m^2) - m)
   end
   
-    E = get_E(u,N,J)
-    B = get_B(u,N,J)
+    #Fu = view(u,4N+1, 4N+3*prod(J))
 
-    energy_E = sum.(E'*E+B'*B)
+    energy_E = u[4N+1:end]'*u[4N+1:end]
+
+    #E = get_E(u,N,J)
+    #B = get_B(u,N,J)
+
+    #energy_E = sum.(E'*E+B'*B)
   
   # return energy_K,  dx * energy_E / 2 * n0
-  return energy_K / n0,  dx * energy_E / 2 # normalized version
+  return energy_K / n0,  prod(dx) * energy_E / 2 # normalized version
 end
 
 
