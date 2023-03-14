@@ -135,7 +135,7 @@ function make_periodic!(r,Box::Tuple)
         r[(i-1)*2*D+j] = mod1(r[(i-1)*2*D+j] - Box_array[2j-1], L[j]) + Box_array[2j-1]
       end
     end
-    return r[:]
+    #return r[:]
 end
 
 function get_all_positions(u,D,N)
