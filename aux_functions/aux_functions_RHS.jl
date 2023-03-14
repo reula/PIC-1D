@@ -47,7 +47,7 @@ function RHS_D(u,t,p_RHSC)
       E = F[1:2,:,:]
       B = F[3,:,:]
       
-      dFu = view(u,4N+1:4N+3*prod(J))
+      dFu = view(du,4N+1:4N+3*prod(J))
       dF = reshape(dFu,(3,J...))
 
       @threads for i in 1:J[1]
@@ -62,7 +62,7 @@ function RHS_D(u,t,p_RHSC)
       @threads for j in 1:J[2]
         for i in 1:J[1]
             for l in 1:2
-         dF[l,i,j] +=  0.0*S[l,i,j] # particles have negative sign!
+         dF[l,i,j] +=  S[l,i,j] # particles have negative sign!
             end
         end
       end
@@ -87,10 +87,4 @@ function RK4_Step!(f,y0,t0,h,p)
 end
 
 
-function RK4_Step!!(f,y0,t0,h,p)
-    k1 = h*f(y0,t0,p)
-    k2 = h*f(y0+0.5*k1, t0+0.5*h,p)
-    k3 = h*f(y0+0.5*k2, t0+0.5*h,p)
-    k4 = h*f(y0+k3, t0+h,p)
-    y0 .= y0 + (k1 + 2k2 + 2k3 + k4)/6
-end
+
