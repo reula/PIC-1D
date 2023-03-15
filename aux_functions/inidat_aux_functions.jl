@@ -134,6 +134,7 @@ end
 
 """ to normalize the momentum distribution first run with norm=1, 
 and then calculate the norm, and use it again to get the correct normalization. 
+NO LONGER USED, USE INSTEAD A NORMAL MID-POINT INTEGRAL 
 """
 function norm_f_p_rel(f_p_rel, par_f_p, n, p_max)
   dp = p_max/(n-1) 
@@ -148,11 +149,33 @@ f_p_rel(p,(θ,norm)) = exp((1 - sqrt(1+p^2))/θ) / sqrt(θ*π*2) / norm
 f_p_rel(p::Array,(θ,norm,D)) = exp((1 - sqrt(1+p'*p))/θ) / sqrt(θ*π*2)^(length(p)) / norm 
 f_p_rel_max((θ,norm,D)) = 1 / sqrt(θ*π*2)^D / norm 
 
-f_p(p,(θ,)) = exp(- p^2/θ/2) / sqrt(θ*π*2) 
-f_p(p::Array,(θ,D)) = exp(- (p'*p)/θ/2) / sqrt(θ*π*2)^D
-f_p_max((θ,D)) = 1 / sqrt(θ*π*2)^D
+"""
+This corresponds to a distribution of two particle distributions at different temperatures 
+in the frame where one is at rest and the other at a velocity v with respect to the first.
+Note that we multiply by a factor exp(1/θ) each term because otherwise the numerical range
+ of values goes to zero.
+"""
+function f_p_weibel(p::Array,par_f_p; m=1)
+  θ1, θ2, v::Array, norm, D = par_f_p
+  γ = 1/sqrt(1 - v'*v)
+  return exp((m-sqrt(m^2 + p'*p))/θ1) * exp((m-sqrt(m^2 + p'*p) - v'*p)/θ2*γ) / norm
+  #sqrt(m^2 + p'*p)/θ1
+  #-(sqrt(m^2 + p'*p) + v'*p)/θ2*γ
+end
+
+function f_p_weibel_max(par_f_p; m=1)
+  θ1, θ2, v::Array, norm, D = par_f_p
+  γ = 1/sqrt(1 - v'*v) 
+  return exp(-m/θ2*(1-1/γ)) / norm
+end
 
 
+f_p_thermal(p,(θ,)) = exp(- p^2/θ/2) / sqrt(θ*π*2) 
+f_p_thermal(p::Array,(θ,D)) = exp(- (p'*p)/θ/2) / sqrt(θ*π*2)^D
+f_p_thermal_max((θ,D)) = 1 / sqrt(θ*π*2)^D
+
+f_p_weibel_norel(p::Array,(θ,D,Ax)) = exp(- (p'*p - p[1]^2*(Ax/(1+Ax)))/θ/2) / sqrt(θ*π*2)^D / sqrt(1+Ax)
+f_p_weibel_norel_max((θ,D,Ax)) = 1 / sqrt(θ*π*2)^D / sqrt(1+Ax)
 
 
 """The following routine returns a random velocity distributed on a double Maxwellian distribution function 
