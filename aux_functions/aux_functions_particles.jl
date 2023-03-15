@@ -110,29 +110,30 @@ function Coordinate_test(r,L)
     end
 end
 
-function Coordinate_test(r,Box::Tuple)
+function Coordinate_test(r,Box::Tuple,N)
   D = length(Box)÷2
   for d in 1:D
     if minimum(r[d:2D:2D*N]) < Box[2d-1] || maximum(r[d:2D:2D*N]) > Box[2d]
       error("particle out of Box min=$(minimum(r[d:2D:2D*N])), max=$(maximum(r[d:2D:2D*N]))")
     end
   end
+  println("test passed")
 end
 
 
 
 function make_periodic!(r,L)
-    return mod1.(r,L)
+    return mod.(r,L)
   end
   
-function make_periodic!(r,Box::Tuple)
+function make_periodic!(r,Box::Tuple,N)
     D = length(Box)÷2
-    N = length(r)÷2÷D
+    #N = length(r)÷2÷D
     Box_array = [i for i in Box]
     L = Box_array[2:2:end] - Box_array[1:2:end-1]
     for i in 1:N
       for j in 1:D
-        r[(i-1)*2*D+j] = mod1(r[(i-1)*2*D+j] - Box_array[2j-1], L[j]) + Box_array[2j-1]
+        r[(i-1)*2*D+j] = mod(r[(i-1)*2*D+j] - Box_array[2j-1], L[j]) + Box_array[2j-1]
       end
     end
     #return r[:]
