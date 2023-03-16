@@ -32,11 +32,11 @@ end
 
 function RHS_D(u,t,p_RHSC)
     if nthreads() == 1
-      N, J, Box, order, n, S, du, get_density!, get_current, Interpolate, Dx, Dy = p_RHSC
+      N, J, Box, order, n, S, du, get_density!, get_current, Interpolate,  Dx, Δx, σx, Dy, Δy, σy = p_RHSC
       par_grid = (N, J, Box, order)
       get_current(u, S, par_grid)
     else
-      N, J, Box, order, n, S, du, get_density!, get_current_threads, Interpolate, TS, Dx, Dy  = p_RHSC
+      N, J, Box, order, n, S, du, get_density!, get_current_threads, Interpolate, TS,  Dx, Δx, σx, Dy, Δy, σy  = p_RHSC
       par_grid = (N, J, Box, order)
       get_current_threads(u, S, (par_grid, TS))
     end
@@ -51,12 +51,12 @@ function RHS_D(u,t,p_RHSC)
       dF = reshape(dFu,(3,J...))
 
       @threads for i in 1:J[1]
-        mul!(view(dF,1,i,:),Dy, view(F,3,i,:),one(eltype(F)))
-        mul!(view(dF,3,i,:),Dy, view(F,1,i,:),one(eltype(F)))
+        mul!(view(dF,1,i,:),Dy + σy*Δy, view(F,3,i,:),one(eltype(F)))
+        mul!(view(dF,3,i,:),Dy + σy*Δy, view(F,1,i,:),one(eltype(F)))
         end
         @threads for j in 1:J[2]
-        mul!(view(dF,2,:,j),Dx, view(F,3,:,j),-one(eltype(F)))
-        mul!(view(dF,3,:,j),Dx, view(F,2,:,j),-one(eltype(F)),one(eltype(F)))
+        mul!(view(dF,2,:,j),Dx + σx*Δx, view(F,3,:,j),-one(eltype(F)))
+        mul!(view(dF,3,:,j),Dx + σx*Δx, view(F,2,:,j),-one(eltype(F)),one(eltype(F)))
         end
 
       @threads for j in 1:J[2]

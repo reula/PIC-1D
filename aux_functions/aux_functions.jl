@@ -311,6 +311,26 @@ function retrieve_meta_data(file_name::String)
   return data, run_name, par_grid, par_evolv, par_f, n0, x, t_series
 end
 
+function retrieve_meta_data_D(file_name::String)
+  data = load(file_name)
+  run_name = data["run_name"]
+  par_grid = data["par_grid"]
+  par_evolv = data["par_evolv"]
+  par_f = data["p_Ini"]
+  (N, J, Box, order) = par_grid
+  (t_i, t_f, M, M_g, dt) = par_evolv
+  #@show (θ, nm, κ) = par_f
+  n0 = N/volume(Box)
+  dx = differentials(Box,J)
+  
+  x = [(i-1)*dx[1] for i in 1:J[1]]
+  y = [(i-1)*dx[2] for i in 1:J[2]]
+
+  dT = dt * (M-1) / (M_g-1)
+  t_series = [t_i+(i-1)*dT for i in 1:M_g]
+  return data, run_name, par_grid, par_evolv, par_f, n0, (x,y), t_series
+end
+
 
 ########################################################################
 # plotting functions
