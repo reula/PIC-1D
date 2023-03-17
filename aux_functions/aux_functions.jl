@@ -26,6 +26,8 @@ include("aux_functions_grid.jl")
 
 include("aux_functions_RHS.jl")
 
+include("aux_functions_IO.jl")
+
 
 function compare_electric_field_constraints(v,j,par_grid, par_evolv, run_name, save_plots)
   N, L, J, dx, order = par_grid

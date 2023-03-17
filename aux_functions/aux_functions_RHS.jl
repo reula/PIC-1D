@@ -51,12 +51,23 @@ function RHS_D(u,t,p_RHSC)
       dF = reshape(dFu,(3,J...))
 
       @threads for i in 1:J[1]
-        mul!(view(dF,1,i,:),Dy + σy*Δy, view(F,3,i,:),one(eltype(F)))
-        mul!(view(dF,3,i,:),Dy + σy*Δy, view(F,1,i,:),one(eltype(F)))
+        mul!(view(dF,1,i,:), Dy, view(F,3,i,:),one(eltype(F)))
+        mul!(view(dF,3,i,:), Dy , view(F,1,i,:),one(eltype(F)))
         end
         @threads for j in 1:J[2]
-        mul!(view(dF,2,:,j),Dx + σx*Δx, view(F,3,:,j),-one(eltype(F)))
-        mul!(view(dF,3,:,j),Dx + σx*Δx, view(F,2,:,j),-one(eltype(F)),one(eltype(F)))
+        mul!(view(dF,2,:,j), Dx, view(F,3,:,j),-one(eltype(F)))
+        mul!(view(dF,3,:,j), Dx, view(F,2,:,j),-one(eltype(F)),one(eltype(F)))
+        end
+
+      @threads for i in 1:J[1]
+        mul!(view(dF,1,i,:), Δy, view(F,1,i,:), σy, one(eltype(F)))
+        mul!(view(dF,2,i,:), Δy, view(F,2,i,:), σy, one(eltype(F)))
+        mul!(view(dF,3,i,:), Δy, view(F,3,i,:), σy, one(eltype(F)))
+        end
+        @threads for j in 1:J[2]
+        mul!(view(dF,1,:,j), Δx, view(F,1,:,j), σx, one(eltype(F)))
+        mul!(view(dF,2,:,j), Δx, view(F,2,:,j), σx, one(eltype(F)))
+        mul!(view(dF,3,:,j), Δx, view(F,3,:,j), σx, one(eltype(F)))
         end
 
       @threads for j in 1:J[2]
