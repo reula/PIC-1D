@@ -305,7 +305,7 @@ function get_current_threads_2D!(u::Array{Float64,1}, S::Array{Float64,3}, par; 
   #s = [0 for i in 1:nthreads()]
   n0 = N
   # Evaluate number density.
-  @fastmath @threads for i in 1:N
+  @threads for i in 1:N
               #s = (i-1)*2D + 1
               #r = view(u,s:s+D-1)
               #p = view(u,s+D:s+2*D-1) # in the relativistic version we compute p instead of v
@@ -325,7 +325,7 @@ function get_current_threads_2D!(u::Array{Float64,1}, S::Array{Float64,3}, par; 
   fill!(S,Float64(0.0))
   #S .= [0.0,0.0]
   #@show n, Tn
-  @fastmath @threads for t in 1:nthreads()
+  @threads for t in 1:nthreads()
             for j in 1:J[2]
               for i in 1:J[1] 
                 for l in 1:2
