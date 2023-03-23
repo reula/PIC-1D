@@ -68,10 +68,9 @@ get_index_and_y(0.4,2,1)
 dx = 0.5, j = 1, y = 0.4/0.5 = 0.8
 get_index_and_y(0.7,2,1) = j = 2, 0.2/0.5= 0.4
 """
-@inline function get_index_and_y(s,J,L)
-  y, int = modf((s/L*J + J)%J)
-  j = int + 1
-  j, y
+@inline function get_index_and_y(s, J, L, yshift=0.0)
+  y, j = modf((s / L * J + J) % J)
+  floor(Int64, j) + 1, y - yshift
 end
 
 """
@@ -84,11 +83,11 @@ y=zeros(3)
 get_index_and_y!(j,y,ss,Jt,Box)
 ([88, 88, 88], [0.4000000000000057, 0.39999999999997726, 0.4000000000000057])
 """
-@inline function get_index_and_y(r, J::Tuple,Box::Tuple)
+@inline function get_index_and_y(r, J::Tuple, Box::Tuple, yshift=0.0)
   j = zeros(Int64, length(J))
   y = zeros(length(J))
   for i in 1:length(J)
-    idx, y = get_index_and_y(r[i], J[i], Box[2i] - Box[2i-1])
+    idx, y = get_index_and_y(r[i], J[i], Box[2i] - Box[2i-1], yshift)
 
     # tmp = (r[i]/(Box[2i] - Box[2i-1])*J[i] + J[i])%J[i]
     # int = floor(Int,tmp)
@@ -119,9 +118,9 @@ get_index_and_y!(j,y,ss,Jt,Box)
   end
 end
 
-@inline function get_index_and_y!(j::AbstractArray{Int64,1}, y::AbstractArray{Float64,1}, r, J::Tuple,Box::Tuple) 
+@inline function get_index_and_y!(j::AbstractArray{Int64,1}, y::AbstractArray{Float64,1}, r, J::Tuple, Box::Tuple, yshift)
   for i in eachindex(J)
-    j[i], y[i] = get_index_and_y(r[i], J[i],Box[2i] - Box[2i-1])
+    j[i], y[i] = get_index_and_y(r[i], J[i], Box[2i] - Box[2i-1], yshift)
     # y[i] =  (r[i]/(Box[2i] - Box[2i-1])*J[i] + J[i])%J[i]
     # j[i] = floor(Int,y[i]) + 1
     # y[i] = (y[i]%1)
