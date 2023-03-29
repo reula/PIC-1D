@@ -306,21 +306,22 @@ function get_current_threads_2D!(u::Array{Float64,1}, S::Array{Float64,3}, par; 
   n0 = N
   # Evaluate number density.
   @threads for i in 1:N
-              #s = (i-1)*2D + 1
-              #r = view(u,s:s+D-1)
-              #p = view(u,s+D:s+2*D-1) # in the relativistic version we compute p instead of v
-      @inbounds v[:,threadid()] = p2v(u[i*2D - D + 1:i*2D]) / n0 # dividimos aquí para hacerlo más eficiente.
-              #s[threadid()] = (i-1)*2D + 1
-              #u_r[:,threadid()] = view(u,s[threadid()]:(s[threadid()]+D-1))
-              #j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u_r[:,threadid()],J , Box) 
-      @inbounds j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u[(i-1)*2D + 1:(i-1)*2D + D],J , Box) 
-      @inbounds y[:,threadid()] .= y[:,threadid()] .- shift # shift must be the same in all directions!
-              for l in (-bound):(bound+1) 
-                for m in (-bound):(bound+1)
-      @inbounds TS[:,mod1(j[1,threadid()] + l, J[1]), mod1(j[2,threadid()] + m, J[2]),threadid()] += Shape(order, -y[1,threadid()] + l) * Shape(order, -y[2,threadid()] + m)*v[:,threadid()]
-                end
-              end
-            end
+    #s = (i-1)*2D + 1
+    #r = view(u,s:s+D-1)
+    #p = view(u,s+D:s+2*D-1) # in the relativistic version we compute p instead of v
+    @views @inbounds v[:, threadid()] = p2v(u[i*2D-D+1:i*2D]) / n0 # dividimos aquí para hacerlo más eficiente.
+    #s[threadid()] = (i-1)*2D + 1
+    #u_r[:,threadid()] = view(u,s[threadid()]:(s[threadid()]+D-1))
+    #j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u_r[:,threadid()],J , Box) 
+    # @inbounds j[:, threadid()], y[:, threadid()] = get_index_and_y!(j[:, threadid()], y[:, threadid()], u[(i-1)*2D+1:(i-1)*2D+D], J, Box)
+    @inbounds @views get_index_and_y!(j[:, threadid()], y[:, threadid()], u[(i-1)*2D+1:(i-1)*2D+D], J, Box, shift)
+    for l in (-bound):(bound+1)
+      for m in (-bound):(bound+1)
+#        @inbounds TS[threadid(), :, mod1(j[1, threadid()] + l, J[1]), mod1(j[2, threadid()] + m, J[2])] += Shape(order, -y[1, threadid()] + l) * Shape(order, -y[2, threadid()] + m) * v[:, threadid()]
+        @views TS[:, mod1(j[1, threadid()] + l, J[1]), mod1(j[2, threadid()] + m, J[2]), threadid()] += Shape(order, -y[1, threadid()] + l) * Shape(order, -y[2, threadid()] + m) * v[:, threadid()]
+      end
+    end
+  end
 
   fill!(S,Float64(0.0))
   #S .= [0.0,0.0]
@@ -338,3 +339,55 @@ function get_current_threads_2D!(u::Array{Float64,1}, S::Array{Float64,3}, par; 
 end
 
 
+static_bound(::Val{N}) where {N} = Int64(ceil(N / 2))
+
+function v_trans(::Val{D}, N, n0, u) where {D}
+  v = Matrix{Float64}(undef, N, D)
+  @threads for i in 1:N
+      @inbounds @views vtmp = p2v(u[i*2D-D+1:i*2D]) / n0
+      for d in 1:D
+          @inbounds v[i, d] = vtmp[d]
+      end
+  end
+  v
+end
+
+function sort_arrays_by_index(idx, y, v)
+  colperm = sortperm(collect(eachslice(idx; dims=2)))
+  idx[:, colperm], y[:, colperm], v[:, colperm]
+end
+
+function get_current_2D_trans(::Val{Order}, N::Integer, J::NTuple{2,Integer}, Box::NTuple{4,AbstractFloat}, u::Vector{Float64}; shift=0.0) :: Array{Float64} where {Order}
+  D::Int64 = 2
+  if D != length(J)
+    error("dimension mismatch")
+  end
+
+  n0 = N
+  bound = static_bound(Val(Order))
+
+
+  L = [(Box[2d] - Box[2d-1]) for d = 1:D]
+  r = [u[(i-1)*2D+d] for i = 1:N, d = 1:D]
+
+  idx, y = get_indices_and_y_trans(r, J, L, shift)
+  v = v_trans(Val(D), N, n0, u)
+
+  idx_sorted, y_sorted, v_sorted = sort_arrays_by_index(idx, y, v)
+
+  nlocals = Threads.nthreads()
+  local_results = zeros(Float64, J[1], J[2], D, nlocals)
+  @threads for i in 1:N
+      lid = Threads.threadid()
+      for l in (-bound):(bound+1)
+          s1 = Shape(order, -y_sorted[i, 1] + l)
+          for m in (-bound):(bound+1)
+              s2 = Shape(order, -y_sorted[i, 2] + m)
+              for d in 1:D
+                  @inbounds @fastmath local_results[mod1(idx_sorted[i, 1] + l, J[1]), mod1(idx_sorted[i, 2] + m, J[2]), d, lid] += s1 * s2 * v_sorted[i, d]
+              end
+          end
+      end
+  end
+  reduce(+, eachslice(local_results, dims=4))
+end
