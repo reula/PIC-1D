@@ -42,8 +42,8 @@ function get_density_2D!(u, n, par_grid, shift)
     s = (i-1)*2D + 1
     u_r = view(u,s:(s+D-1))
     #@inbounds j, y = get_index_and_y!(j,y,u_r,J,Box)
-    @inbounds get_index_and_y!(j,y,u_r,J,Box)
-    y .= y .- shift # shift must be the same in all directions!
+    @inbounds get_index_and_y!(j,y,u_r,J,Box,shift)
+    #y .= y .- shift # shift must be the same in all directions!
     for l in (-bound):(bound+1) 
       for m in (-bound):(bound+1)
       #@inbounds n[mod1(j + l, J)] += Shape(order, -y + l) / dx / n0; # the dx here is from the different definition from the paper
@@ -76,8 +76,8 @@ function get_density_threads_2D!(u, n, par, shift)
               #s[threadid()] = (i-1)*2D + 1
               #u_r[:,threadid()] = view(u,s[threadid()]:(s[threadid()]+D-1))
               #j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u_r[:,threadid()],J , Box) 
-              j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u[(i-1)*2D + 1:(i-1)*2D + D],J , Box) 
-      @inbounds  y[:,threadid()] .= y[:,threadid()] .- shift # shift must be the same in all directions!
+              j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u[(i-1)*2D + 1:(i-1)*2D + D],J , Box,shift) 
+      #@inbounds  y[:,threadid()] .= y[:,threadid()] .- shift # shift must be the same in all directions!
               for l in (-bound):(bound+1)
                 for m in (-bound):(bound+1)
       @inbounds   Tn[mod1(j[1,threadid()] + l, J[1]), mod1(j[2,threadid()] + m, J[2]), threadid()] += Shape(order, -y[1,threadid()] + l) * Shape(order, -y[2,threadid()] + m)
@@ -380,9 +380,9 @@ function get_current_2D_trans(::Val{Order}, N::Integer, J::NTuple{2,Integer}, Bo
   @threads for i in 1:N
       lid = Threads.threadid()
       for l in (-bound):(bound+1)
-          s1 = Shape(order, -y_sorted[i, 1] + l)
+          s1 = Shape(Val(Order), -y_sorted[i, 1] + l)
           for m in (-bound):(bound+1)
-              s2 = Shape(order, -y_sorted[i, 2] + m)
+              s2 = Shape(Val(Order), -y_sorted[i, 2] + m)
               for d in 1:D
                   @inbounds @fastmath local_results[mod1(idx_sorted[i, 1] + l, J[1]), mod1(idx_sorted[i, 2] + m, J[2]), d, lid] += s1 * s2 * v_sorted[i, d]
               end
