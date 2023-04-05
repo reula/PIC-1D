@@ -343,13 +343,17 @@ static_bound(::Val{N}) where {N} = Int64(ceil(N / 2))
 
 function v_trans(::Val{D}, N, n0, u) where {D}
   v = Matrix{Float64}(undef, N, D)
+  v_trans!(Val(D), v, N, n0, u)
+  v
+end
+
+function v_trans!(::Val{D}, v, N, n0, u) where {D}
   @threads for i in 1:N
       @inbounds @views vtmp = p2v(u[i*2D-D+1:i*2D]) / n0
       for d in 1:D
           @inbounds v[i, d] = vtmp[d]
       end
   end
-  v
 end
 
 function sort_arrays_by_index(idx, y, v)
