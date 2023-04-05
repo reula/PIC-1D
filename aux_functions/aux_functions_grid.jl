@@ -99,11 +99,9 @@ get_index_and_y!(j,y,ss,Jt,Box)
   j, y
 end
 
-@inline function get_indices_and_y_trans(r, sz, L, yshift=0.0)
+@inline function get_indices_and_y_trans!(idx, y, r, sz, L, yshift=0.0)
   N = size(r)[1]
   D = size(r)[2]
-  idx = Matrix{Int64}(undef, N, D)
-  y = Matrix{Float64}(undef, N, D)
   for d = 1:D
     @threads for i = 1:N
       @inbounds tmp = (r[i, d] / L[d] * sz[d] + sz[d]) % sz[d]
@@ -111,6 +109,14 @@ end
       y[i, d] = (tmp % 1) - yshift
     end
   end
+end
+
+@inline function get_indices_and_y_trans(r, sz, L, yshift=0.0)
+  N = size(r)[1]
+  D = size(r)[2]
+  idx = Matrix{Int64}(undef, N, D)
+  y = Matrix{Float64}(undef, N, D)
+  get_indices_and_y_trans!(idx, y, r, sz, L, yshift)
   idx, y
 end
 
