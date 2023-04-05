@@ -396,16 +396,16 @@ function get_current_2D_trans!(::Val{Order}, result :: Array{Float64, 3}, storag
   nlocals = Threads.nthreads()
   local_results .= 0.0
   @threads for i in 1:N
-      lid = Threads.threadid()
+    lid = Threads.threadid()
+    for m in (-bound):(bound+1)
+      sm = Shape(Val(Order), -y[i, 2] + m)
       for l in (-bound):(bound+1)
-          s1 = Shape(Val(Order), -y[i, 1] + l)
-          for m in (-bound):(bound+1)
-              s2 = Shape(Val(Order), -y[i, 2] + m)
-              for d in 1:D
-                  @fastmath @inbounds local_results[mod1(idx[i, 1] + l, J[1]), mod1(idx[i, 2] + m, J[2]), d, lid] += s1 * s2 * v[i, d]
-              end
-          end
+        sl = Shape(Val(Order), -y[i, 1] + l)
+        for d in 1:D
+          @fastmath @inbounds local_results[mod1(idx[i, 1] + l, J[1]), mod1(idx[i, 2] + m, J[2]), d, lid] += sm * sl * v[i, d]
+        end
       end
+    end
   end
   result .= reduce(+, eachslice(local_results, dims=4))
 end
