@@ -289,7 +289,7 @@ The output is an array of type (2,J1,J2). Checked and working OK against the oth
 function get_current_threads_2D!(u::Array{Float64,1}, S::Array{Float64,3}, par; shift=0.0) #WITH DIFFERENT LAYOUT
   #par_grid, Tn, j, y = par # no vale la pena en cuanto a tiempo ni memoria
   par_grid, TS = par
-  N, J, Box, order = par_grid
+  N, Box, J, order = par_grid
   D = 2::Int64
   bound = Int64(ceil(order/2))
   if D != length(J) 
@@ -343,13 +343,17 @@ static_bound(::Val{N}) where {N} = Int64(ceil(N / 2))
 
 function v_trans(::Val{D}, N, n0, u) where {D}
   v = Matrix{Float64}(undef, N, D)
+  v_trans!(Val(D), v, N, n0, u)
+  v
+end
+
+function v_trans!(::Val{D}, v, N, n0, u) where {D}
   @threads for i in 1:N
       @inbounds @views vtmp = p2v(u[i*2D-D+1:i*2D]) / n0
       for d in 1:D
           @inbounds v[i, d] = vtmp[d]
       end
   end
-  v
 end
 
 function sort_arrays_by_index(idx, y, v)
@@ -357,7 +361,22 @@ function sort_arrays_by_index(idx, y, v)
   idx[:, colperm], y[:, colperm], v[:, colperm]
 end
 
-function get_current_2D_trans(::Val{Order}, N::Integer, J::NTuple{2,Integer}, Box::NTuple{4,AbstractFloat}, u::Vector{Float64}; shift=0.0) :: Array{Float64} where {Order}
+mutable struct Current2DTransStorage
+  N :: Integer
+  J :: NTuple{2, Integer}
+  local_results :: Array{Float64, 4}
+  idx :: Matrix{Int64}
+  y :: Matrix{Float64}
+  v :: Matrix{Float64}
+
+  function Current2DTransStorage(N, J)
+    new(N, J, zeros(Float64, J[1], J[2], 2, Threads.nthreads()), ones(Int64, N, 2), zeros(Float64, N, 2), zeros(Float64, N, 2))
+  end
+end
+
+function get_current_2D_trans!(::Val{Order}, result :: Array{Float64, 3}, storage :: Current2DTransStorage, Box::NTuple{4,Float64}, u::Vector{Float64}; shift::Float64=0.0) where {Order}
+  N, J, local_results, idx, y, v = storage.N, storage.J, storage.local_results, storage.idx, storage.y, storage.v
+
   D::Int64 = 2
   if D != length(J)
     error("dimension mismatch")
@@ -366,28 +385,42 @@ function get_current_2D_trans(::Val{Order}, N::Integer, J::NTuple{2,Integer}, Bo
   n0 = N
   bound = static_bound(Val(Order))
 
-
   L = [(Box[2d] - Box[2d-1]) for d = 1:D]
   r = [u[(i-1)*2D+d] for i = 1:N, d = 1:D]
 
-  idx, y = get_indices_and_y_trans(r, J, L, shift)
-  v = v_trans(Val(D), N, n0, u)
+  get_indices_and_y_trans!(idx, y, r, J, L, shift)
+  v_trans!(Val(D), v, N, n0, u)
 
-  idx_sorted, y_sorted, v_sorted = sort_arrays_by_index(idx, y, v)
+  #idx_sorted, y_sorted, v_sorted = sort_arrays_by_index(idx, y, v)
 
   nlocals = Threads.nthreads()
-  local_results = zeros(Float64, J[1], J[2], D, nlocals)
+  local_results .= 0.0
   @threads for i in 1:N
-      lid = Threads.threadid()
+    lid = Threads.threadid()
+    for m in (-bound):(bound+1)
+      sm = Shape(Val(Order), -y[i, 2] + m)
       for l in (-bound):(bound+1)
-          s1 = Shape(Val(Order), -y_sorted[i, 1] + l)
-          for m in (-bound):(bound+1)
-              s2 = Shape(Val(Order), -y_sorted[i, 2] + m)
-              for d in 1:D
-                  @inbounds @fastmath local_results[mod1(idx_sorted[i, 1] + l, J[1]), mod1(idx_sorted[i, 2] + m, J[2]), d, lid] += s1 * s2 * v_sorted[i, d]
-              end
-          end
+        sl = Shape(Val(Order), -y[i, 1] + l)
+        for d in 1:D
+          @fastmath @inbounds local_results[mod1(idx[i, 1] + l, J[1]), mod1(idx[i, 2] + m, J[2]), d, lid] += sm * sl * v[i, d]
+        end
       end
+    end
   end
-  reduce(+, eachslice(local_results, dims=4))
+  result .= reduce(+, eachslice(local_results, dims=4))
+end
+
+function get_current_2D_trans(order::Val{Order}, N::Integer, J::NTuple{2,Integer}, Box::NTuple{4,Float64}, u::Vector{Float64}; shift::Float64=0.0) :: Array{Float64,3} where {Order}
+  D::Int64 = 2
+  if D != length(J)
+    error("dimension mismatch")
+  end
+
+  @inline begin
+    storage = Current2DTransStorage(N, J)
+    # result = Array{Float64}(undef, J[1], J[2], 2)
+    result = zeros(Float64, J[1], J[2], 2)
+    get_current_2D_trans!(order, result, storage, Box, u; shift)
+    result
+  end
 end
