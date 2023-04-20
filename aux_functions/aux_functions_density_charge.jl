@@ -349,7 +349,7 @@ end
 
 function v_trans!(::Val{D}, v, N, n0, u) where {D}
   @threads for i in 1:N
-      @inbounds @views vtmp = p2v(u[i*2D-D+1:i*2D]) / n0
+      @fastmath @inbounds @views vtmp = p2v(u[i*2D-D+1:i*2D]) / n0
       for d in 1:D
           @inbounds v[i, d] = vtmp[d]
       end
@@ -361,7 +361,7 @@ function sort_arrays_by_index(idx, y, v)
   idx[:, colperm], y[:, colperm], v[:, colperm]
 end
 
-mutable struct Current2DTransStorage
+mutable struct Current2DTrans
   N :: Integer
   J :: NTuple{2, Integer}
   local_results :: Array{Float64, 4}
@@ -369,12 +369,12 @@ mutable struct Current2DTransStorage
   y :: Matrix{Float64}
   v :: Matrix{Float64}
 
-  function Current2DTransStorage(N, J)
+  function Current2DTrans(N, J)
     new(N, J, zeros(Float64, J[1], J[2], 2, Threads.nthreads()), ones(Int64, N, 2), zeros(Float64, N, 2), zeros(Float64, N, 2))
   end
 end
 
-function get_current_2D_trans!(::Val{Order}, result :: Array{Float64, 3}, storage :: Current2DTransStorage, Box::NTuple{4,Float64}, u::Vector{Float64}; shift::Float64=0.0) where {Order}
+function (storage::Current2DTrans)(::Val{Order}, Box::NTuple{4,Float64}, u::Vector{Float64}; shift::Float64=0.0) where {Order}
   N, J, local_results, idx, y, v = storage.N, storage.J, storage.local_results, storage.idx, storage.y, storage.v
 
   D::Int64 = 2
@@ -398,29 +398,14 @@ function get_current_2D_trans!(::Val{Order}, result :: Array{Float64, 3}, storag
   @threads for i in 1:N
     lid = Threads.threadid()
     for m in (-bound):(bound+1)
-      sm = Shape(Val(Order), -y[i, 2] + m)
+      @inbounds sm = Shape(Val(Order), -y[i, 2] + m)
       for l in (-bound):(bound+1)
-        sl = Shape(Val(Order), -y[i, 1] + l)
+        @inbounds sl = Shape(Val(Order), -y[i, 1] + l)
         for d in 1:D
           @fastmath @inbounds local_results[mod1(idx[i, 1] + l, J[1]), mod1(idx[i, 2] + m, J[2]), d, lid] += sm * sl * v[i, d]
         end
       end
     end
   end
-  result .= reduce(+, eachslice(local_results, dims=4))
-end
-
-function get_current_2D_trans(order::Val{Order}, N::Integer, J::NTuple{2,Integer}, Box::NTuple{4,Float64}, u::Vector{Float64}; shift::Float64=0.0) :: Array{Float64,3} where {Order}
-  D::Int64 = 2
-  if D != length(J)
-    error("dimension mismatch")
-  end
-
-  @inline begin
-    storage = Current2DTransStorage(N, J)
-    # result = Array{Float64}(undef, J[1], J[2], 2)
-    result = zeros(Float64, J[1], J[2], 2)
-    get_current_2D_trans!(order, result, storage, Box, u; shift)
-    result
-  end
+  reduce(+, eachslice(local_results, dims=4))
 end
