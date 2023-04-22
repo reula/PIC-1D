@@ -106,13 +106,13 @@ end
 """
 Interpolate function for the whole of E + v x B
 """
-@inline function Interpolate_EBv_1(order::Int64, E::Array{Float64,3}, B::Array{Float64,2}, v::Array{Float64,1}, x, J::Tuple, Box::Tuple)
+@inline function Interpolate_EBv_1(order::Int64, E::Array{Float64,3}, B::Array{Float64,2}, v::Array{Float64,1}, x, J::NTuple, Box::NTuple)
   #stencil = order÷2
   stencil = Int64(ceil((order+1)/2))
   D = length(J)
   EBv = Array{Float64,1}(undef,2)
   if D==1
-    j, y = get_index_and_y(x,J[1],Box[2])
+    j, y = get_index_and_y(x,J[1],Box[2]-Box[1])
     vi = 0.0
     for l in (-stencil):(stencil +1)
       vi += vector[mod1(j+l,J[1])] * W(order, -y + l)
@@ -121,7 +121,9 @@ Interpolate function for the whole of E + v x B
   elseif D==2
     j = [1,1]
     y = [0.0,0.0]
-    @inbounds j, y = get_index_and_y!(j,y,x,J,Box)
+    
+    get_index_and_y!(j,y,x,J,Box)
+    #j, y = get_index_and_y!(j,y,x,J,Box)
     #j, y = get_index_and_y!(x,J,Box)
     vi = similar(E[:,1,1])
     vi .= 0.0
