@@ -36,9 +36,12 @@ function RHS_D(u,t,p_RHSC)
       par_grid = (N, J, Box, order)
       get_current(u, S, par_grid)
     else
-      N, J, Box, order, n, S, du, get_density!, get_current_threads, Interpolate, TS,  Dx, Δx, σx, Dy, Δy, σy  = p_RHSC
+      #N, J, Box, order, n, S, du, get_density!, get_current_threads, Interpolate, TS,  Dx, Δx, σx, Dy, Δy, σy  = p_RHSC
+      #par_grid = (N, J, Box, order)
+      #get_current_threads(u, S, (par_grid, TS))
+      N, J, Box, order, n, S, du, get_density!, get_current_threads, Interpolate,  Dx, Δx, σx, Dy, Δy, σy  = p_RHSC
       par_grid = (N, J, Box, order)
-      get_current_threads(u, S, (par_grid, TS))
+      S = get_current_threads(Val(order), Box_x, u)
     end
     make_periodic!(u,Box_x,N)
       #E = view(u,2N+1:2N+J)
@@ -77,7 +80,8 @@ function RHS_D(u,t,p_RHSC)
       @threads for j in 1:J[2]
         for i in 1:J[1]
             for l in 1:2
-         dF[l,i,j] +=  S[l,i,j] # particles have negative sign!
+         #dF[l,i,j] +=  S[l,i,j] # particles have negative sign!
+         dF[l,i,j] +=  S[i,j,l]
             end
         end
       end

@@ -23,7 +23,7 @@ function get_density!(u, n, par_grid, shift)
   return n[:] # return rho directly (we need to subtract 1 in cases where we assume positive particles, but this is done elsewhere.)
 end
 
-function get_density_2D!(u, n, par_grid, shift)
+function get_density_2D!(u, n, par_grid; yshift=0.0)
   N, Box, J, order = par_grid
   #vol = volume(Box)
   fill!(n,0.0)
@@ -42,7 +42,7 @@ function get_density_2D!(u, n, par_grid, shift)
     s = (i-1)*2D + 1
     u_r = view(u,s:(s+D-1))
     #@inbounds j, y = get_index_and_y!(j,y,u_r,J,Box)
-    @inbounds get_index_and_y!(j,y,u_r,J,Box,shift)
+    @inbounds get_index_and_y!(j, y, u_r, J, Box; yshift=yshift)
     #y .= y .- shift # shift must be the same in all directions!
     for l in (-bound):(bound+1) 
       for m in (-bound):(bound+1)
@@ -289,12 +289,12 @@ The output is an array of type (2,J1,J2). Checked and working OK against the oth
 function get_current_threads_2D!(u::Array{Float64,1}, S::Array{Float64,3}, par; shift=0.0) #WITH DIFFERENT LAYOUT
   #par_grid, Tn, j, y = par # no vale la pena en cuanto a tiempo ni memoria
   par_grid, TS = par
-  N, Box, J, order = par_grid
+  N, J, Box, order = par_grid
   D = 2::Int64
   bound = Int64(ceil(order/2))
   if D != length(J) 
-    error("dimension mismach")
-   end
+    error("dimension mismach, D = $D, J = $(J)")
+  end
   #u_r = Array{Float64}(undef,(D,nthreads()))
   j = Array{Int64}(undef,2,nthreads())
   j .= 1
@@ -314,7 +314,8 @@ function get_current_threads_2D!(u::Array{Float64,1}, S::Array{Float64,3}, par; 
     #u_r[:,threadid()] = view(u,s[threadid()]:(s[threadid()]+D-1))
     #j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u_r[:,threadid()],J , Box) 
     # @inbounds j[:, threadid()], y[:, threadid()] = get_index_and_y!(j[:, threadid()], y[:, threadid()], u[(i-1)*2D+1:(i-1)*2D+D], J, Box)
-    @inbounds @views get_index_and_y!(j[:, threadid()], y[:, threadid()], u[(i-1)*2D+1:(i-1)*2D+D], J, Box, shift)
+    #@inbounds 
+    @views get_index_and_y!(j[:, threadid()], y[:, threadid()], u[(i-1)*2D+1:(i-1)*2D+D], J, Box, shift)
     for l in (-bound):(bound+1)
       for m in (-bound):(bound+1)
 #        @inbounds TS[threadid(), :, mod1(j[1, threadid()] + l, J[1]), mod1(j[2, threadid()] + m, J[2])] += Shape(order, -y[1, threadid()] + l) * Shape(order, -y[2, threadid()] + m) * v[:, threadid()]
