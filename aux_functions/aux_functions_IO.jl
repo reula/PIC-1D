@@ -285,7 +285,7 @@ end
     return v
   end
   
-  function retrieve_data_D(data, par_grid, par_evolv)
+  function retrieve_data_D(data, par_grid, par_evolv; M_last=nothing)
     (N, J, Box, order) = par_grid
     (t_i, t_f, M, M_g, dt) = par_evolv
     D = length(J)
