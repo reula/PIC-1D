@@ -111,17 +111,18 @@ Interpolate function for the whole of E + v x B
   stencil = Int64(ceil((order+1)/2))
   D = length(J)
   EBv = Array{Float64,1}(undef,2)
+  val_order = Val(order)
   if D==1
     j, y = get_index_and_y(x,J[1],Box[2]-Box[1])
     vi = 0.0
     for l in (-stencil):(stencil +1)
-      vi += vector[mod1(j+l,J[1])] * W(order, -y + l)
+      vi += vector[mod1(j+l,J[1])] * W(val_order, -y + l)
     end
     return vi
   elseif D==2
     j = [1,1]
     y = [0.0,0.0]
-    
+
     get_index_and_y!(j,y,x,J,Box)
     #j, y = get_index_and_y!(j,y,x,J,Box)
     #j, y = get_index_and_y!(x,J,Box)
@@ -131,7 +132,7 @@ Interpolate function for the whole of E + v x B
       for m in (-stencil):(stencil +1)
         EBv[1] = E[1,mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])] - v[2]*B[mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])]
         EBv[2] = E[2,mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])] + v[1]*B[mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])]
-        vi += EBv * W(order, -y[1] + l) * W(order, -y[2] + m)
+        vi += EBv * W(val_order, -y[1] + l) * W(val_order, -y[2] + m)
       end
     end
     return vi[:]
