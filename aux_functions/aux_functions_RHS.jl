@@ -50,6 +50,7 @@ function RHS_D(u,t,p_RHSC)
     E = F[1:2,:,:]
     B = F[3,:,:]
       
+    du .= 0.0
     dFu = view(du,4N+1:4N+3*prod(J))
     dF = reshape(dFu,(3,J...))
 
