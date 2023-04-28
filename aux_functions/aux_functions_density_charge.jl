@@ -28,6 +28,7 @@ function get_density_2D!(u, n, par_grid; yshift=0.0)
   #vol = volume(Box)
   fill!(n,0.0)
   #n0 = N/vol # correct expression but not needed
+  val_order = Val(order)
   D = 2
   if D != length(J) 
     error("dimension mismach")
@@ -46,8 +47,8 @@ function get_density_2D!(u, n, par_grid; yshift=0.0)
     #y .= y .- shift # shift must be the same in all directions!
     for l in (-bound):(bound+1) 
       for m in (-bound):(bound+1)
-      #@inbounds n[mod1(j + l, J)] += Shape(order, -y + l) / dx / n0; # the dx here is from the different definition from the paper
-      @inbounds n[mod1(j[1] + l, J[1]), mod1(j[2] + m, J[2])] += Shape(order, -y[1] + l) * Shape(order, -y[2] + m)/ n0
+      #@inbounds n[mod1(j + l, J)] += Shape(val_order, -y + l) / dx / n0; # the dx here is from the different definition from the paper
+      @inbounds n[mod1(j[1] + l, J[1]), mod1(j[2] + m, J[2])] += Shape(val_order, -y[1] + l) * Shape(val_order, -y[2] + m)/ n0
       end
     end
   end
