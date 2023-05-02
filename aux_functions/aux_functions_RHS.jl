@@ -88,11 +88,12 @@ function RHS_D(u,t,p_RHSC)
       end
 
       @threads for i in 1:N        
-        v = p2v(u[range_p(i, D)])
+        @views v = p2v(u[i*2D-D+1:i*2D])
+        # v = p2v(u[range_p(i, D)])(i-1)*2*D+1+D:i*2*D
          du[range_x(i, D)] = v # relativistic factor (u is the momentum)
-         du[range_p(i, D)] = - Interpolate(order, E, B, v, u[range_x(i, D)], J, Box)
+         du[i*2D-D+1:i*2D] = - Interpolate(order, E, B, v, u[range_x(i, D)], J, Box)
       end
-
+      #@show norm(du[4N+1:4N+3*prod(J)])
       return du[:]
   end
 

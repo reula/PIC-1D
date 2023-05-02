@@ -33,7 +33,7 @@ function get_density_2D!(u, n, par_grid; yshift=0.0)
   if D != length(J) 
     error("dimension mismach")
    end
-  n0 = N
+  n0 = N/prod(J)
   j = [1,1]
   y = [0.0,0.0]
   #@show u
@@ -287,7 +287,7 @@ end
 version of get_current_threads_2D but with shorter stencils and different indexing for the arrays.
 The output is an array of type (2,J1,J2). Checked and working OK against the other version and against the serial version.
 """
-function get_current_threads_2D!(u::Array{Float64,1}, S::Array{Float64,3}, par; shift=0.0) #WITH DIFFERENT LAYOUT
+function get_current_threads_2D!(u::Array{Float64,1}, S::Array{Float64,3}, par; yshift=0.0) #WITH DIFFERENT LAYOUT
   #par_grid, Tn, j, y = par # no vale la pena en cuanto a tiempo ni memoria
   par_grid, TS = par
   N, J, Box, order = par_grid
@@ -316,10 +316,10 @@ function get_current_threads_2D!(u::Array{Float64,1}, S::Array{Float64,3}, par; 
     #j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u_r[:,threadid()],J , Box) 
     # @inbounds j[:, threadid()], y[:, threadid()] = get_index_and_y!(j[:, threadid()], y[:, threadid()], u[(i-1)*2D+1:(i-1)*2D+D], J, Box)
     #@inbounds 
-    @views get_index_and_y!(j[:, threadid()], y[:, threadid()], u[(i-1)*2D+1:(i-1)*2D+D], J, Box, shift)
+    @views get_index_and_y!(j[:, threadid()], y[:, threadid()], u[(i-1)*2D+1:(i-1)*2D+D], J, Box; yshift=yshift)
     for l in (-bound):(bound+1)
       for m in (-bound):(bound+1)
-#        @inbounds TS[threadid(), :, mod1(j[1, threadid()] + l, J[1]), mod1(j[2, threadid()] + m, J[2])] += Shape(order, -y[1, threadid()] + l) * Shape(order, -y[2, threadid()] + m) * v[:, threadid()]
+ #        @inbounds TS[threadid(), :, mod1(j[1, threadid()] + l, J[1]), mod1(j[2, threadid()] + m, J[2])] += Shape(order, -y[1, threadid()] + l) * Shape(order, -y[2, threadid()] + m) * v[:, threadid()]
         @views TS[:, mod1(j[1, threadid()] + l, J[1]), mod1(j[2, threadid()] + m, J[2]), threadid()] += Shape(order, -y[1, threadid()] + l) * Shape(order, -y[2, threadid()] + m) * v[:, threadid()]
       end
     end
@@ -342,6 +342,53 @@ end
 
 
 static_bound(::Val{N}) where {N} = Int64(ceil(N / 2))
+
+mutable struct Density2DTrans
+  N :: Integer
+  J :: NTuple{2, Integer}
+  local_results :: Array{Float64, 3}
+  idx :: Matrix{Int64}
+  y :: Matrix{Float64}
+
+  function Density2DTrans(N, J)
+    new(N, J, zeros(Float64, J[1], J[2], Threads.nthreads()), ones(Int64, N, 2), zeros(Float64, N, 2))
+  end
+end
+
+function (storage::Density2DTrans)(::Val{Order}, Box::NTuple{4,Float64}, u::Vector{Float64}; shift::Float64=0.0) where {Order}
+  N, J, local_results, idx, y = storage.N, storage.J, storage.local_results, storage.idx, storage.y
+
+  D::Int64 = 2
+  if D != length(J)
+    error("dimension mismatch")
+  end
+
+  n0 = N/prod(J) # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
+  bound = static_bound(Val(Order))
+
+  L = [(Box[2d] - Box[2d-1]) for d = 1:D]
+  r = [u[(i-1)*2D+d] for i = 1:N, d = 1:D]
+
+  get_indices_and_y_trans!(idx, y, r, J, L; yshift = shift)
+  #v_trans!(Val(D), v, N, n0, u)
+  # v is already divided by n0! So we don't need to divide again here.
+
+  #idx_sorted, y_sorted, v_sorted = sort_arrays_by_index(idx, y, v)
+
+  nlocals = Threads.nthreads()
+  local_results .= 0.0
+  @threads for i in 1:N
+    lid = Threads.threadid()
+    for m in (-bound):(bound+1)
+      @inbounds sm = Shape(Val(Order), -y[i, 2] + m)/n0 #we divide here by n0 so that everything is taken care of
+      for l in (-bound):(bound+1)
+        @inbounds sl = Shape(Val(Order), -y[i, 1] + l)
+        @fastmath @inbounds local_results[mod1(idx[i, 1] + l, J[1]), mod1(idx[i, 2] + m, J[2]), lid] += sm * sl
+      end
+    end
+  end
+  reduce(+, eachslice(local_results, dims=3))
+end
 
 function v_trans(::Val{D}, N, n0, u) where {D}
   v = Matrix{Float64}(undef, N, D)
@@ -376,6 +423,7 @@ mutable struct Current2DTrans
   end
 end
 
+
 function (storage::Current2DTrans)(::Val{Order}, Box::NTuple{4,Float64}, u::Vector{Float64}; shift::Float64=0.0) where {Order}
   N, J, local_results, idx, y, v = storage.N, storage.J, storage.local_results, storage.idx, storage.y, storage.v
 
@@ -384,14 +432,15 @@ function (storage::Current2DTrans)(::Val{Order}, Box::NTuple{4,Float64}, u::Vect
     error("dimension mismatch")
   end
 
-  n0 = N
+  n0 = N/prod(J) # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
   bound = static_bound(Val(Order))
 
   L = [(Box[2d] - Box[2d-1]) for d = 1:D]
   r = [u[(i-1)*2D+d] for i = 1:N, d = 1:D]
 
-  get_indices_and_y_trans!(idx, y, r, J, L, shift)
+  get_indices_and_y_trans!(idx, y, r, J, L; yshift = shift)
   v_trans!(Val(D), v, N, n0, u)
+  # v is already divided by n0! So we don't need to divide again here.
 
   #idx_sorted, y_sorted, v_sorted = sort_arrays_by_index(idx, y, v)
 
