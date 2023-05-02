@@ -1,11 +1,11 @@
 @inline function range_E(N, J)
     D = length(J)
     if D==1
-      return  N+1:N+J[1]
+      return  2N+1:2N+J[1]
     elseif D==2
-      return N+1:N+D*J[1]*J[2]
+      return 4N+1:4N+D*J[1]*J[2]
     elseif D==3
-      return N+1:N+D*J[1]*J[2]*J[3]
+      return 6N+1:6N+D*J[1]*J[2]*J[3]
     else
       error("Is is not defined for D=$D")
     end
@@ -16,9 +16,9 @@
     if D==1
       error("Not defined for D=1") # no magnetic field in this case.
     elseif D==2
-      return N+D*J[1]*J[2]+1:N+(D+1)*J[1]*J[2] #here B is one component
+      return 4N+D*J[1]*J[2]+1:4N+(D+1)*J[1]*J[2] #here B is one component
     elseif D==3
-      return N+D*J[1]*J[2]*J[3]+1:N+2D*J[1]*J[2]*J[3] #here B is 3 components
+      return 6N+D*J[1]*J[2]*J[3]+1:6N+2D*J[1]*J[2]*J[3] #here B is 3 components
     else
       error("Is is not defined for D=$D")
     end
@@ -46,6 +46,103 @@
     B = get_B(u,N,J)
   end
 
+  @inline function ϕ_test(x,x0,Box,r0,p)
+    D = length(x)
+    dx = x-x0
+    L = [Box[2d] - Box[2d-1] for d in 1:D]
+    for d in 1:D
+      #dx[d] = (dx[d] - Box[2d-1] + (Box[2d] - Box[2d-1]))%(Box[2d] - Box[2d-1]) + Box[2d-1]
+      #dx[d] = (dx[d] - Box[2d-1])%(Box[2d] - Box[2d-1]) + Box[2d-1]
+      xL = (dx[d] - Box[2d-1]+L[d])%(L[d]) + Box[2d-1]
+      xS = (dx[d] - Box[2d-1])%(L[d]) + Box[2d-1]
+      if abs(xL)>abs(xS)
+        dx[d] = xS
+      else
+        dx[d] = xL
+      end
+    end
+    r2 = dx'*dx
+    r02 = r0^2
+    if r2 < r02
+      return (r2-r02)^p/r02^p
+    else
+      return 0
+    end
+  end
 
-  
+  @inline function ∇ϕ_test(x,x0,Box,r0,p)
+    local D = length(x)
+    local dx = x-x0
+    local L = [Box[2d] - Box[2d-1] for d in 1:D]
+    for d in 1:D
+      xL = (dx[d] - Box[2d-1]+L[d])%(L[d]) + Box[2d-1]
+      xS = (dx[d] - Box[2d-1])%(L[d]) + Box[2d-1]
+      if abs(xL)>abs(xS)
+        dx[d] = xS
+      else
+        dx[d] = xL
+      end
+    end
+    r2 = dx'*dx
+    r02 = r0^2
+    if r2 < r0^2
+      return 2p*(r2-r02)^(p-1)/r02^p*dx
+    else
+      return [0,0]
+    end
+  end
+
+"""
+This function is not working properly, it outputs zero...
+"""
+function div_E!(Div,E,Dx,Dy,J)
+    for i in 1:J[1]
+        mul!(Div[i,:],Dy,E[2,i,:],one(eltype(Div)))
+    end
+    for j in 1:J[2]
+        mul!(Div[:,j],Dx,E[1,:,j],one(eltype(Div)),one(eltype(Div)))
+    end
+end
+
+function constraint_test(E,ρ,J,Box, ϕ, ∇ϕ, pars)
+  D = length(J)
+  dx = differentials(Box,J)
+  x_p = [dx[1]*(i-1) + Box[1] for i in 1:J[1]] ;
+  y_p = [dx[2]*(i-1) + Box[3] for i in 1:J[2]] ;
+  x0, r0, p = pars
+  M = zeros(J)
+  for i in 1:J[1]
+      for j in 1:J[2]
+        M[i,j] = ϕ([x_p[i],y_p[j]],x0,Box,r0,p)
+      end
+  end
+
+  DM = zeros(J...,D)
+  for i in 1:J[1]
+      for j in 1:J[2]
+          for d in 1:D
+            DM[i,j,d] = ∇ϕ([x_p[i],y_p[j]],x0,Box,r0,p)[d]
+          end
+      end
+  end
+
+  DivE_∇ϕ_test = 0
+  for i in 1:J[1]
+      for j in 1:J[2]
+          for d in 1:D
+              DivE_∇ϕ_test += E[d,i,j]*DM[i,j,d]
+          end
+      end
+  end
+
+  ρf_ϕ_test = 0
+  for i in 1:J[1]
+      for j in 1:J[2]
+          ρf_ϕ_test += ρ[i,j]*M[i,j]
+      end
+  end
+
+  return DivE_∇ϕ_test, ρf_ϕ_test, abs((DivE_∇ϕ_test - ρf_ϕ_test)/ρf_ϕ_test)
+end
+
   

@@ -99,7 +99,7 @@ get_index_and_y!(j,y,ss,Jt,Box)
   j, y
 end
 
-@inline function get_indices_and_y_trans!(idx, y, r, sz, L, yshift=0.0)
+@inline function get_indices_and_y_trans!(idx, y, r, sz, L; yshift=0.0)
   N = size(r)[1]
   D = size(r)[2]
   for d = 1:D
@@ -111,12 +111,12 @@ end
   end
 end
 
-@inline function get_indices_and_y_trans(r, sz, L, yshift=0.0)
+@inline function get_indices_and_y_trans(r, sz, L; yshift=0.0)
   N = size(r)[1]
   D = size(r)[2]
   idx = Matrix{Int64}(undef, N, D)
   y = Matrix{Float64}(undef, N, D)
-  get_indices_and_y_trans!(idx, y, r, sz, L, yshift)
+  get_indices_and_y_trans!(idx, y, r, sz, L; yshift=yshift)
   idx, y
 end
 
@@ -142,9 +142,6 @@ end
 @inline function get_index_and_y!(j::AbstractArray{Int64,1}, y::AbstractArray{Float64,1}, r, J::Tuple, Box::Tuple; yshift=0.0)
   for i in eachindex(j)
     j[i], y[i] = get_index_and_y(r[i], J[i], Box[2i] - Box[2i-1]; yshift=yshift)
-    # y[i] =  (r[i]/(Box[2i] - Box[2i-1])*J[i] + J[i])%J[i]
-    # j[i] = floor(Int,y[i]) + 1
-    # y[i] = (y[i]%1)
   end
 end
 

@@ -70,9 +70,9 @@ function get_momenta!(p,i,par_dis)
   p[:] = par_dis[range_p(i,D)]
 end
 
-@inline range_x(i, D) =  (i-1)*2*D+1:(i-1)*2*D+D
+@inline range_x(i, D) = (i-1)*2D+1:i*2D-D #(i-1)*2D+1:(i-1)*2D+D
 
-@inline range_p(i, D) = (i-1)*2*D+1+D:i*2*D
+@inline range_p(i, D) = i*2D-D+1:i*2D #(i-1)*2*D+1+D:i*2*D
 
 
 """ 
