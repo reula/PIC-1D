@@ -46,20 +46,23 @@
     B = get_B(u,N,J)
   end
 
+  
+
   @inline function ϕ_test(x,x0,Box,r0,p)
     D = length(x)
-    dx = x-x0
+    desp = zeros(D)
+    dx = zeros(D)
     L = [Box[2d] - Box[2d-1] for d in 1:D]
+    @assert 0.0 < abs(r0) && abs(r0) < maximum(L)
     for d in 1:D
-      #dx[d] = (dx[d] - Box[2d-1] + (Box[2d] - Box[2d-1]))%(Box[2d] - Box[2d-1]) + Box[2d-1]
-      #dx[d] = (dx[d] - Box[2d-1])%(Box[2d] - Box[2d-1]) + Box[2d-1]
-      xL = (dx[d] - Box[2d-1]+L[d])%(L[d]) + Box[2d-1]
-      xS = (dx[d] - Box[2d-1])%(L[d]) + Box[2d-1]
-      if abs(xL)>abs(xS)
-        dx[d] = xS
+      if x0[d] - r0 < Box[2d-1]
+        desp[d] = r0
+      elseif x0[d] + r0 > Box[2d]
+        desp[d] = -r0
       else
-        dx[d] = xL
+        desp[d] = 0.0
       end
+        dx[d] = (x[d] - x0[d] + desp[d])%L[d] - desp[d]
     end
     r2 = dx'*dx
     r02 = r0^2
@@ -72,16 +75,18 @@
 
   @inline function ∇ϕ_test(x,x0,Box,r0,p)
     local D = length(x)
-    local dx = x-x0
-    local L = [Box[2d] - Box[2d-1] for d in 1:D]
+    desp = zeros(D)
+    L = [Box[2d] - Box[2d-1] for d in 1:D]
+    @assert 0.0 < abs(r0) && abs(r0) < maximum(L)
     for d in 1:D
-      xL = (dx[d] - Box[2d-1]+L[d])%(L[d]) + Box[2d-1]
-      xS = (dx[d] - Box[2d-1])%(L[d]) + Box[2d-1]
-      if abs(xL)>abs(xS)
-        dx[d] = xS
+      if x0[d] - r0 < Box[2d-1]
+        desp[d] = r0
+      elseif x0[d] + r0 > Box[2d]
+        desp[d] = -r0
       else
-        dx[d] = xL
+        desp[d] = 0.0
       end
+        dx[d] = (x[d] - x0[d] + desp[d])%L[d] - desp[d]
     end
     r2 = dx'*dx
     r02 = r0^2
