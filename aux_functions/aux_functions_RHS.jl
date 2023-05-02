@@ -36,15 +36,11 @@ function RHS_D(u,t,p_RHSC)
       par_grid = (N, J, Box, order)
       get_current(u, S, par_grid)
     else
-      #N, J, Box, order, n, S, du, get_density!, get_current_threads, Interpolate, TS,  Dx, Δx, σx, Dy, Δy, σy  = p_RHSC
-      #par_grid = (N, J, Box, order)
-      #get_current_threads(u, S, (par_grid, TS))
       N, J, Box, order, n, S, du, get_density!, get_current_threads, Interpolate,  Dx, Δx, σx, Dy, Δy, σy  = p_RHSC
       par_grid = (N, J, Box, order)
       S = get_current_threads(Val(order), Box_x, u)
     end
     make_periodic!(u,Box_x,N)
-      #E = view(u,2N+1:2N+J)
     Fu = view(u,4N+1:4N+3*prod(J))
     F = reshape(Fu,(3,J...))
     E = F[1:2,:,:]
@@ -54,7 +50,7 @@ function RHS_D(u,t,p_RHSC)
     dFu = view(du,4N+1:4N+3*prod(J))
     dF = reshape(dFu,(3,J...))
 
-    if false  #take away waves if false
+    if true  #take away waves if false
       @threads for i in 1:J[1]
         mul!(view(dF,1,i,:), Dy, view(F,3,i,:),one(eltype(F)))
         mul!(view(dF,3,i,:), Dy , view(F,1,i,:),one(eltype(F)))
