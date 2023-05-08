@@ -289,7 +289,7 @@ end
     (N, J, Box, order) = par_grid
     (t_i, t_f, M, M_g, dt) = par_evolv
     D = length(J)
-    v = zeros(2D*N+3*prod(J),M_g)
+    @show v = zeros(2D*N+3*prod(J),M_g)
 
     if M_last !== nothing # if we gave some values, then use it.
         M_g = M_last
