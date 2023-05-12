@@ -32,7 +32,7 @@ const D = 2
 
 
 # Particle numbers
-const N_exp = 5 #7#6#5 #6
+const N_exp = 6 #7#6#5 #6
 N = 10^(N_exp)
 
 if  thermal
@@ -206,3 +206,10 @@ end
 # J = (50,50)
 # threads = 2, RHS_D($du,$u,$p_RHS_D), 1.959 s (46123146 allocations: 1.91 GiB)
 # threads = 2, RHS_D(du,u,p_RHS_D), 1.917 s (46123146 allocations: 1.91 GiB)
+
+#jupyter_CCAD
+# N = 10^6
+# J = (50,50)
+# threads = 2,  12.275 s (461023153 allocations: 19.04 GiB)
+# threads = 20,  9.567 s (461024065 allocations: 19.05 GiB)
+# threads = 40, 14.994 s (461025064 allocations: 19.05 GiB)
