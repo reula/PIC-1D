@@ -133,7 +133,7 @@ Dy = periodic_derivative_operator(derivative_order=1, accuracy_order=6, xmin=Box
 const σx = 0.0 #1.0 #dissipation strength
 const σy = 0.0 #1.0 #dissipation strength
 dissipation = false
-maxwell = true 
+maxwell = false
 
 @show par_evolv = (t_i, t_f, M, M_g, dt)
 @show par_grid = (N, J, Box_x, order)
@@ -180,6 +180,7 @@ animation = false
 
 u = Vector{Float64}(undef, 4N + 3*prod(J)); # contains r, v and E and B
 du = Vector{Float64}(undef, 4N + 3*prod(J)); # contains r, v and E
+du_ref = Vector{Float64}(undef, 4N + 3*prod(J)); # contains r, v and E
 u[1:4N] = par_dis 
 Fu = view(u,4N+1:4N+3*prod(J))
 F = reshape(Fu,3,J...)
@@ -199,7 +200,11 @@ else
     p_RHS_D = (N, J, Box_x, order, n, S, du, get_density_2D!, get_current_rel_2D!, Interpolate_EBv_1, Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation) ;
 end
 
-@btime RHS_D($du,$u,$p_RHS_D);
+#RHS_D(du_ref,u,p_RHS_D); # here we save the output before changes
+#RHS_D_opt(du,u,p_RHS_D);
+#RHS_D_slim(du,u,p_RHS_D);
+
+@btime RHS_D_slim($du,$u,$p_RHS_D);
 
 
 # N = 10^5
@@ -208,8 +213,30 @@ end
 # threads = 2, RHS_D(du,u,p_RHS_D), 1.917 s (46123146 allocations: 1.91 GiB)
 
 #jupyter_CCAD
+# with no dissipation
 # N = 10^6
 # J = (50,50)
 # threads = 2,  12.275 s (461023153 allocations: 19.04 GiB)
 # threads = 20,  9.567 s (461024065 allocations: 19.05 GiB)
 # threads = 40, 14.994 s (461025064 allocations: 19.05 GiB)
+
+# with no dissipation nor maxwell
+# N = 10^6
+# J = (50,50)
+# threads = 2,  12.345 s (461022726 allocations: 19.04 GiB)
+# threads = 20,  9.128 s (461023429 allocations: 19.05 GiB)
+# threads = 40, 17.194 s (461024189 allocations: 19.05 GiB)
+# 
+# with no dissipation nor maxwell nor S, only interpolations
+# N = 10^6
+# J = (50,50)
+# threads = 2, 11.652 s (459017648 allocations: 18.88 GiB)
+# threads = 20, 9.225 s (459017866 allocations: 18.88 GiB)
+# threads = 40, 13.880 s (459018110 allocations: 18.88 GiB)
+
+# slim version with no dissipation nor maxwell only S, and interpolations
+# N = 10^6
+# J = (50,50)
+# threads = 2, 12.836 s (460000118 allocations: 19.06 GiB)
+# threads = 20, 8.439 s (460000940 allocations: 19.06 GiB)
+# threads = 40, 13.963 s (460001826 allocations: 19.06 GiB)
