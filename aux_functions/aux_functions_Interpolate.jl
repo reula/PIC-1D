@@ -151,7 +151,7 @@ end
     #j, y = get_index_and_y(x,J[1],Box[2]-Box[1])
     vi = 0.0
     for l in (-stencil):(stencil +1)
-      vi += vector[mod1(j+l,J[1])] * W(val_order, -y + l)
+      @inbounds   vi += vector[mod1(j+l,J[1])] * W(val_order, -y + l)
     end
     return vi
   elseif D==2

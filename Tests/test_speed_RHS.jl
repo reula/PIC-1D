@@ -10,8 +10,12 @@ using LinearAlgebra
 using FFTW
 FFTW.set_provider!("mkl")
 using BenchmarkTools
+using Profile
+#using ProfileView
 println("nthreads = $(nthreads())")
 
+@show pwd()
+cd("./Tests")
 include("../aux_functions/aux_functions.jl")
 include("../aux_functions/inidat_aux_functions.jl")
 
@@ -200,11 +204,14 @@ else
     p_RHS_D = (N, J, Box_x, order, n, S, du, get_density_2D!, get_current_rel_2D!, Interpolate_EBv_1, Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation) ;
 end
 
-#RHS_D(du_ref,u,p_RHS_D); # here we save the output before changes
+RHS_D(du_ref,u,p_RHS_D); # here we save the output before changes
 #RHS_D_opt(du,u,p_RHS_D);
-#RHS_D_slim(du,u,p_RHS_D);
+RHS_D_slim(du,u,p_RHS_D);
+@profile RHS_D_slim(du,u,p_RHS_D);
+#@profview RHS_D_slim(du,u,p_RHS_D);
 
-@btime RHS_D_slim($du,$u,$p_RHS_D);
+#@show norm(du_ref - du)
+#@btime RHS_D_slim($du,$u,$p_RHS_D);
 
 
 # N = 10^5
@@ -239,4 +246,5 @@ end
 # J = (50,50)
 # threads = 2, 12.836 s (460000118 allocations: 19.06 GiB)
 # threads = 20, 8.439 s (460000940 allocations: 19.06 GiB)
+# threads = 20, 9.012 s (460021069 allocations: 19.06 GiB)
 # threads = 40, 13.963 s (460001826 allocations: 19.06 GiB)

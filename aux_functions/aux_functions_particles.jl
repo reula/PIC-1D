@@ -131,7 +131,7 @@ function make_periodic!(r,Box::Tuple,N)
     #N = length(r)÷2÷D
     Box_array = [i for i in Box]
     L = Box_array[2:2:end] - Box_array[1:2:end-1]
-    for i in 1:N
+    @threads for i in 1:N
       for j in 1:D
         r[(i-1)*2*D+j] = mod(r[(i-1)*2*D+j] - Box_array[2j-1], L[j]) + Box_array[2j-1]
       end
