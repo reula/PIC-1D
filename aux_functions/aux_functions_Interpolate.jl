@@ -128,11 +128,46 @@ Interpolate function for the whole of E + v x B
     #j, y = get_index_and_y!(x,J,Box)
     vi = similar(E[:,1,1])
     vi .= 0.0
-    for l in (-stencil):(stencil +1)
+    @fastmath for l in (-stencil):(stencil +1)
       for m in (-stencil):(stencil +1)
-        EBv[1] = E[1,mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])] - v[2]*B[mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])]
-        EBv[2] = E[2,mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])] + v[1]*B[mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])]
-        vi += EBv * W(val_order, -y[1] + l) * W(val_order, -y[2] + m)
+        @inbounds EBv[1] = E[1,mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])] - v[2]*B[mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])]
+        @inbounds EBv[2] = E[2,mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])] + v[1]*B[mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])]
+        @inbounds vi += EBv * W(val_order, -y[1] + l) * W(val_order, -y[2] + m)
+      end
+    end
+    return vi[:]
+  else
+    error("Not yet implemented for D=$D")
+  end
+end
+
+@inline function Interpolate_EBv_1_slim(order::Int64, E::Array{Float64,3}, B::Array{Float64,2}, v::Array{Float64,1}, j, y , J::NTuple, Box::NTuple)
+  #stencil = order÷2
+  stencil = Int64(ceil((order+1)/2))
+  D = length(J)
+  EBv = Array{Float64,1}(undef,2)
+  val_order = Val(order)
+  if D==1
+    #j, y = get_index_and_y(x,J[1],Box[2]-Box[1])
+    vi = 0.0
+    for l in (-stencil):(stencil +1)
+      vi += vector[mod1(j+l,J[1])] * W(val_order, -y + l)
+    end
+    return vi
+  elseif D==2
+    #j = [1,1]
+    #y = [0.0,0.0]
+
+    #get_index_and_y!(j,y,x,J,Box)
+    #j, y = get_index_and_y!(j,y,x,J,Box)
+    #j, y = get_index_and_y!(x,J,Box)
+    vi = similar(E[:,1,1])
+    vi .= 0.0
+    @fastmath for l in (-stencil):(stencil +1)
+      for m in (-stencil):(stencil +1)
+        @inbounds EBv[1] = E[1,mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])] - v[2]*B[mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])]
+        @inbounds EBv[2] = E[2,mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])] + v[1]*B[mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])]
+        @inbounds vi += EBv * W(val_order, -y[1] + l) * W(val_order, -y[2] + m)
       end
     end
     return vi[:]

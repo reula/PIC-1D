@@ -436,7 +436,7 @@ function (storage::Current2DTrans)(::Val{Order}, Box::NTuple{4,Float64}, u::Vect
   bound = static_bound(Val(Order))
 
   L = [(Box[2d] - Box[2d-1]) for d = 1:D]
-  r = [u[(i-1)*2D+d] for i = 1:N, d = 1:D]
+  r = [u[(i-1)*2D+d] for i in 1:N, d in 1:D]
 
   get_indices_and_y_trans!(idx, y, r, J, L; yshift = shift)
   v_trans!(Val(D), v, N, n0, u)
@@ -445,6 +445,41 @@ function (storage::Current2DTrans)(::Val{Order}, Box::NTuple{4,Float64}, u::Vect
   #idx_sorted, y_sorted, v_sorted = sort_arrays_by_index(idx, y, v)
 
   nlocals = Threads.nthreads()
+  local_results .= 0.0
+  @threads for i in 1:N
+    lid = Threads.threadid()
+    for m in (-bound):(bound+1)
+      @inbounds sm = Shape(Val(Order), -y[i, 2] + m)
+      for l in (-bound):(bound+1)
+        @inbounds sl = Shape(Val(Order), -y[i, 1] + l)
+        for d in 1:D
+          @fastmath @inbounds local_results[mod1(idx[i, 1] + l, J[1]), mod1(idx[i, 2] + m, J[2]), d, lid] += sm * sl * v[i, d]
+        end
+      end
+    end
+  end
+  reduce(+, eachslice(local_results, dims=4))
+end
+
+function get_current_slim(::Val{Order}, Box::NTuple{4,Float64}, J, local_results, idx, y, v; shift::Float64=0.0) where {Order}
+  D::Int64 = 2
+  if D != length(J)
+    error("dimension mismatch")
+  end
+
+  #n0 = N/prod(J) # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
+  bound = static_bound(Val(Order))
+
+  #L = [(Box[2d] - Box[2d-1]) for d = 1:D]
+  #r = [u[(i-1)*2D+d] for i = 1:N, d = 1:D]
+
+  #get_indices_and_y_trans!(idx, y, r, J, L; yshift = shift)
+  #v_trans!(Val(D), v, N, n0, u)
+  # v is already divided by n0! So we don't need to divide again here.
+
+  #idx_sorted, y_sorted, v_sorted = sort_arrays_by_index(idx, y, v)
+
+  #nlocals = Threads.nthreads()
   local_results .= 0.0
   @threads for i in 1:N
     lid = Threads.threadid()
