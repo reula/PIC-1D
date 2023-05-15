@@ -98,11 +98,12 @@ function RHS_D_slim(u,t,p_RHSC) #version to optimize
   N, J, Box, order, n, S, du, get_density!, get_current_threads, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation  = p_RHSC
   par_grid = (N, J, Box, order)
   L = [(Box[2d] - Box[2d-1]) for d = 1:D]
-  #r = [u[(i-1)*2D+d] @threads for i in 1:N, d in 1:D]
+  make_periodic!(u,Box_x,N)
+  #r = [u[(i-1)*2D+d] for i in 1:N, d in 1:D] # no se como hacerlo funcionar con threads
   r = zeros(Float64,N,D)
   @threads for i in 1:N
               for d in 1:D
-                r[i,d] = u[(i-1)*2D+d]
+              @inbounds   r[i,d] = u[(i-1)*2D+d]
               end
             end
   local_results = zeros(Float64, J[1], J[2], 2, Threads.nthreads())
@@ -115,7 +116,7 @@ function RHS_D_slim(u,t,p_RHSC) #version to optimize
   # v is already divided by n0! So we don't need to divide again here.
   S = get_current_slim(Val(order), Box_x, J, local_results, idx, y, v)
      
-    make_periodic!(u,Box_x,N)
+    
     Fu = view(u,4N+1:4N+3*prod(J))
     F = reshape(Fu,(3,J...))
     E = F[1:2,:,:]
@@ -154,7 +155,7 @@ function RHS_D_slim(u,t,p_RHSC) #version to optimize
         for i in 1:J[1]
             for l in 1:2
          #dF[l,i,j] +=  S[l,i,j] # particles have negative sign!
-         @inbounds dF[l,i,j] +=  0.0 # S[i,j,l]
+         @inbounds dF[l,i,j] +=  S[i,j,l]
             end
         end
       end
