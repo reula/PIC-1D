@@ -11,11 +11,11 @@ using FFTW
 FFTW.set_provider!("mkl")
 using BenchmarkTools
 using Profile
-#using ProfileView
+using ProfileView
 println("nthreads = $(nthreads())")
 
 @show pwd()
-cd("./Tests")
+#cd("./Tests")
 include("../aux_functions/aux_functions.jl")
 include("../aux_functions/inidat_aux_functions.jl")
 
@@ -36,7 +36,7 @@ const D = 2
 
 
 # Particle numbers
-const N_exp = 6 #7#6#5 #6
+const N_exp = 5 #7#6#5 #6
 N = 10^(N_exp)
 
 if  thermal
@@ -207,11 +207,11 @@ end
 RHS_D(du_ref,u,p_RHS_D); # here we save the output before changes
 #RHS_D_opt(du,u,p_RHS_D);
 RHS_D_slim(du,u,p_RHS_D);
-@profile RHS_D_slim(du,u,p_RHS_D);
-#@profview RHS_D_slim(du,u,p_RHS_D);
+#@profile RHS_D_slim(du,u,p_RHS_D);
+#VSCodeServer.@profview RHS_D_slim(du,u,p_RHS_D);
 
-#@show norm(du_ref - du)
-#@btime RHS_D_slim($du,$u,$p_RHS_D);
+@show norm(du_ref - du)
+@btime RHS_D_slim($du,$u,$p_RHS_D);
 
 
 # N = 10^5

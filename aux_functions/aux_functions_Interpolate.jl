@@ -161,13 +161,17 @@ end
     #get_index_and_y!(j,y,x,J,Box)
     #j, y = get_index_and_y!(j,y,x,J,Box)
     #j, y = get_index_and_y!(x,J,Box)
-    vi = similar(E[:,1,1])
-    vi .= 0.0
-    @fastmath for l in (-stencil):(stencil +1)
-      for m in (-stencil):(stencil +1)
-        @inbounds EBv[1] = E[1,mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])] - v[2]*B[mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])]
-        @inbounds EBv[2] = E[2,mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])] + v[1]*B[mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])]
-        @inbounds vi += EBv * W(val_order, -y[1] + l) * W(val_order, -y[2] + m)
+    vi = zeros(2)
+    ws = 0.0
+    #=@fastmath=# for l in (-stencil):(stencil +1)
+      ws = W(val_order, -y[1] + l)
+      j1 = mod1(j[1]+l,J[1])
+      @inbounds for m in (-stencil):(stencil +1)
+        ws *= W(val_order, -y[2] + m)
+        j2 = mod1(j[2]+m,J[2])
+        EBv[1] = E[1,j1,j2] - v[2]*B[j1,j2]
+        EBv[2] = E[2,j1,j2] + v[1]*B[j1,j2]
+        vi[:] += EBv * ws
       end
     end
     return vi[:]
