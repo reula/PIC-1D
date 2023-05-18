@@ -94,9 +94,9 @@ function RHS_D(u,t,p_RHSC)
     return du[:]
 end
 
-function RHS_D_slim(u,t,p_RHSC) #version to optimize
-  N, J, Box, order, n, S, du, get_density!, get_current_threads, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation  = p_RHSC
-  par_grid = (N, J, Box, order)
+function RHS_D_slim(::Val{Order},u,t,p_RHSC) where {Order} #version to optimize
+  N, J, Box, _, n, S, du, get_density!, get_current_threads, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation  = p_RHSC
+  par_grid = (N, J, Box, Order)
   L = [(Box[2d] - Box[2d-1]) for d = 1:D]
   make_periodic!(u,Box_x,N)
   #r = [u[(i-1)*2D+d] for i in 1:N, d in 1:D] # no se como hacerlo funcionar con threads
@@ -114,7 +114,7 @@ function RHS_D_slim(u,t,p_RHSC) #version to optimize
   get_indices_and_y_trans!(idx, y, r, J, L)
   v_trans!(Val(D), v, N, n0, u)
   # v is already divided by n0! So we don't need to divide again here.
-  S = get_current_slim(Val(order), Box_x, J, local_results, idx, y, v)
+  S = get_current_slim(Val(Order), Box_x, J, local_results, idx, y, v)
      
     
     Fu = view(u,4N+1:4N+3*prod(J))
@@ -164,7 +164,7 @@ function RHS_D_slim(u,t,p_RHSC) #version to optimize
         #@inbounds @views v = p2v(u[i*2D-D+1:i*2D])
         # v = p2v(u[range_p(i, D)])
         @inbounds du[range_x(i, D)] = v[i,:] # relativistic factor (u is the momentum)
-        @inbounds du[i*2D-D+1:i*2D] = - Interpolate_EBv_1_slim(order, E, B, v[i,:], idx[i,:], y[i,:], J, Box)
+        @inbounds du[i*2D-D+1:i*2D] = - Interpolate_EBv_1_slim(Val(Order), E, B, v[i,:], idx[i,:], y[i,:], J, Box)
       end
       return du[:]
   end
