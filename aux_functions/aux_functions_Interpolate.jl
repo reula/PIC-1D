@@ -141,12 +141,12 @@ Interpolate function for the whole of E + v x B
   end
 end
 
-@inline function Interpolate_EBv_1_slim(order::Int64, E::Array{Float64,3}, B::Array{Float64,2}, v::Array{Float64,1}, j, y , J::NTuple, Box::NTuple)
+@inline function Interpolate_EBv_1_slim(::Val{Order}, E::Array{Float64,3}, B::Array{Float64,2}, v::Array{Float64,1}, j, y , J::NTuple, Box::NTuple) where {Order}
   #stencil = order÷2
-  stencil = Int64(ceil((order+1)/2))
+  stencil = Int64(ceil((Order+1)/2))
   D = length(J)
   EBv = Array{Float64,1}(undef,2)
-  val_order = Val(order)
+  val_order = Val(Order)
   if D==1
     #j, y = get_index_and_y(x,J[1],Box[2]-Box[1])
     vi = 0.0
