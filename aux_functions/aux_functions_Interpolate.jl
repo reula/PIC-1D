@@ -162,16 +162,15 @@ end
     #j, y = get_index_and_y!(j,y,x,J,Box)
     #j, y = get_index_and_y!(x,J,Box)
     vi = zeros(2)
-    ws = 0.0
     @inbounds for m in (-stencil):(stencil +1)
-      ws = W(val_order, -y[2] + m)
+      w2 = W(val_order, -y[2] + m)
       j2 = mod1(j[2]+m,J[2])
       @inbounds for l in (-stencil):(stencil +1)
-        ws *= W(val_order, -y[1] + l)
+        w1 = W(val_order, -y[1] + l)
         j1 = mod1(j[1]+l,J[1])
         EBv[1] = E[1,j1,j2] - v[2]*B[j1,j2]
         EBv[2] = E[2,j1,j2] + v[1]*B[j1,j2]
-        vi += EBv * ws
+        vi += EBv * w2 * w1
       end
     end
     return vi
