@@ -166,7 +166,6 @@ function RHS_D_slim(::Val{Order},u,t,p_RHSC) where {Order} #version to optimize
         @inbounds du[range_x(i, D)] = v[i,:] # relativistic factor (u is the momentum)
         @inbounds du[i*2D-D+1:i*2D] = - Interpolate_EBv_1_slim(Val(Order), E, B, v[i,:], idx[i,:], y[i,:], J, Box)
       end
-      return du[:]
   end
 
   function RHS_D_opt(u,t,p_RHSC) #version to optimize
