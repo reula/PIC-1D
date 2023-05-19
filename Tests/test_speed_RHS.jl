@@ -208,12 +208,12 @@ val_order = Val(order)
 
 RHS_D(du_ref,u,p_RHS_D); # here we save the output before changes
 #RHS_D_opt(du,u,p_RHS_D);
-RHS_D_slim(val_order,du,u,p_RHS_D);
+RHS_D_slim!(val_order,du,u,p_RHS_D);
 #@profile RHS_D_slim(du,u,p_RHS_D);
 #VSCodeServer.@profview RHS_D_slim(du,u,p_RHS_D);
 
 @show norm(du_ref - du)
-@btime RHS_D_slim($val_order,$du,$u,$p_RHS_D);
+@btime RHS_D_slim!($val_order,$du,$u,$p_RHS_D);
 
 
 # N = 10^5
