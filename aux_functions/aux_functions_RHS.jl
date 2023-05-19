@@ -160,11 +160,14 @@ function RHS_D_slim(::Val{Order},u,t,p_RHSC) where {Order} #version to optimize
         end
       end
 
-      @threads for i in 1:N        
+      interp = Interpolate_All_EBv_1_slim(Val(Order), E, B, v, idx, y, J, Box)
+      @threads for i in 1:N
         #@inbounds @views v = p2v(u[i*2D-D+1:i*2D])
         # v = p2v(u[range_p(i, D)])
-        @inbounds du[range_x(i, D)] = v[i,:] # relativistic factor (u is the momentum)
-        @inbounds du[i*2D-D+1:i*2D] = - Interpolate_EBv_1_slim(Val(Order), E, B, v[i,:], idx[i,:], y[i,:], J, Box)
+        for d in 1:D
+          @inbounds du[(i-1)*2D+d] = v[i,d] # relativistic factor (u is the momentum)
+          @inbounds du[i*2D-D+d] = -interp[i, d]
+        end
       end
   end
 
