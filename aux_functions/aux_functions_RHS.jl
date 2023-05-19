@@ -94,7 +94,7 @@ function RHS_D(u,t,p_RHSC)
     return du[:]
 end
 
-function RHS_D_slim(::Val{Order},u,t,p_RHSC) where {Order} #version to optimize
+function RHS_D_slim!(::Val{Order},u,t,p_RHSC) where {Order} #version to optimize
   N, J, Box, _, n, S, du, get_density!, get_current_threads, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation  = p_RHSC
   par_grid = (N, J, Box, Order)
   L = [(Box[2d] - Box[2d-1]) for d = 1:D]
