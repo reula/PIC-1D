@@ -141,12 +141,12 @@ Interpolate function for the whole of E + v x B
   end
 end
 
-@inline function Interpolate_EBv_1_slim(order::Int64, E::Array{Float64,3}, B::Array{Float64,2}, v::Array{Float64,1}, j, y , J::NTuple, Box::NTuple)
+@inline function Interpolate_EBv_1_slim(::Val{Order}, E::Array{Float64,3}, B::Array{Float64,2}, v::Array{Float64,1}, j, y , J::NTuple, Box::NTuple) where {Order}
   #stencil = order÷2
-  stencil = Int64(ceil((order+1)/2))
+  stencil = Int64(ceil((Order+1)/2))
   D = length(J)
   EBv = Array{Float64,1}(undef,2)
-  val_order = Val(order)
+  val_order = Val(Order)
   if D==1
     #j, y = get_index_and_y(x,J[1],Box[2]-Box[1])
     vi = 0.0
@@ -162,21 +162,48 @@ end
     #j, y = get_index_and_y!(j,y,x,J,Box)
     #j, y = get_index_and_y!(x,J,Box)
     vi = zeros(2)
-    ws = 0.0
-    #=@fastmath=# for l in (-stencil):(stencil +1)
-      ws = W(val_order, -y[1] + l)
-      j1 = mod1(j[1]+l,J[1])
-      @inbounds for m in (-stencil):(stencil +1)
-        ws *= W(val_order, -y[2] + m)
-        j2 = mod1(j[2]+m,J[2])
+    @inbounds for m in (-stencil):(stencil +1)
+      w2 = W(val_order, -y[2] + m)
+      j2 = mod1(j[2]+m,J[2])
+      @inbounds for l in (-stencil):(stencil +1)
+        w1 = W(val_order, -y[1] + l)
+        j1 = mod1(j[1]+l,J[1])
         EBv[1] = E[1,j1,j2] - v[2]*B[j1,j2]
         EBv[2] = E[2,j1,j2] + v[1]*B[j1,j2]
-        vi[:] += EBv * ws
+        vi += EBv * w2 * w1
       end
     end
-    return vi[:]
+    return vi
   else
     error("Not yet implemented for D=$D")
   end
 end
 
+function Interpolate_All_EBv_1_slim(::Val{Order}, E::Array{Float64,3}, B::Matrix{Float64}, v::Matrix{Float64}, idx, y , J::NTuple, Box::NTuple) where {Order}
+  stencil = Int64(ceil((Order+1)/2))
+  D = length(J)
+  val_order = Val(Order)
+
+  if D==2
+    vi = zeros(Float64, N, 2)
+    @threads for i in 1:N
+      @inbounds for m in (-stencil):(stencil +1)
+        w2 = W(val_order, -y[i,2] + m)
+        idx2 = mod1(idx[i,2]+m,J[2])
+        @inbounds for l in (-stencil):(stencil +1)
+          w1 = W(val_order, -y[i,1] + l)
+          ws = w2 * w1
+          idx1 = mod1(idx[i,1]+l,J[1])
+
+          EBv1 = E[1,idx1,idx2] - v[i,2]*B[idx1,idx2]
+          EBv2 = E[2,idx1,idx2] + v[i,1]*B[idx1,idx2]
+          vi[i, 1] += EBv1 * ws
+          vi[i, 2] += EBv2 * ws
+        end
+      end
+    end
+    return vi
+  else
+    error("Not yet implemented for D=$D")
+  end
+end
