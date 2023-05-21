@@ -137,7 +137,7 @@ Dy = periodic_derivative_operator(derivative_order=1, accuracy_order=6, xmin=Box
 const σx = 0.0 #1.0 #dissipation strength
 const σy = 0.0 #1.0 #dissipation strength
 dissipation = false
-maxwell = false
+maxwell = true
 
 @show par_evolv = (t_i, t_f, M, M_g, dt)
 @show par_grid = (N, J, Box_x, order)
@@ -160,7 +160,7 @@ n = get_density_2D_trans(Val(order), Box_x, par_dis)
 get_current_2D_trans = Current2DTrans(N, J)
 S = get_current_2D_trans(Val(order), Box_x, par_dis)
 
-B0 = 0.0 #initial magnetic field
+B0 = 2.0 #initial magnetic field
 
 B = [B0 for i in 1:J[1], j in 1:J[2]]
 
@@ -199,21 +199,25 @@ Coordinate_test(u,Box_x,N)
 if nthreads() > 1
     #TS = zeros(Float64, (2,J...,nthreads()))
     #p_RHS_D = (N, J, Box_x, order, n, S, du, get_density_2D!, get_current_threads_2D!, Interpolate_EBv_1, TS, Dx, Δx, σx, Dy, Δy, σy) ;
-    p_RHS_D = (N, J, Box_x, order, n, S, du, get_density_2D!, get_current_2D_trans, Interpolate_EBv_1, Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation) ;
+    p_RHS_D = (N, J, Box_x, order, n, S, du, get_density_2D!, get_current_slim, Interpolate_All_EBv_1_slim, Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation) ;
+    p_RHS_D_ref = (N, J, Box_x, order, n, S, du_ref, get_density_2D!, get_current_2D_trans, Interpolate_EBv_1, Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation) ;
 else
     p_RHS_D = (N, J, Box_x, order, n, S, du, get_density_2D!, get_current_rel_2D!, Interpolate_EBv_1, Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation) ;
+    
 end
 
 val_order = Val(order)
 
-RHS_D(du_ref,u,p_RHS_D); # here we save the output before changes
+RHS_D(u,0.0,p_RHS_D_ref); # here we save the output before changes
 #RHS_D_opt(du,u,p_RHS_D);
-RHS_D_slim!(val_order,du,u,p_RHS_D);
-#@profile RHS_D_slim(du,u,p_RHS_D);
-VSCodeServer.@profview RHS_D_slim(du,u,p_RHS_D);
+RHS_D_slim!(val_order,u,0.0,p_RHS_D);
+#@profile RHS_D_slim(u,0.0,p_RHS_D);
+#VSCodeServer.@profview RHS_D_slim!(val_order,u,0.0,p_RHS_D);
 
+@show norm(u)
+@show norm(du_ref), norm(du)
 @show norm(du_ref - du)
-@btime RHS_D_slim!($val_order,$du,$u,$p_RHS_D);
+#@btime RHS_D_slim!($val_order,$u,0.0,$p_RHS_D);
 
 
 # N = 10^5
@@ -250,3 +254,9 @@ VSCodeServer.@profview RHS_D_slim(du,u,p_RHS_D);
 # threads = 20, 8.439 s (460000940 allocations: 19.06 GiB)
 # threads = 20, 9.012 s (460021069 allocations: 19.06 GiB)
 # threads = 40, 13.963 s (460001826 allocations: 19.06 GiB)
+
+
+
+# B0 = 1   (norm(du_ref), norm(du)) = (20.08351535598122, 2.4834756109661114)
+# B0 = 0   (norm(du_ref), norm(du)) = (14.30248902971554, 2.4576354850116586)
+# B0 = 2   (norm(du_ref), norm(du)) = (31.613679521935694, 2.5580533146069464)

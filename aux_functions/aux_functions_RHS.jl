@@ -40,6 +40,7 @@ function RHS_D(u,t,p_RHSC)
       par_grid = (N, J, Box, order)
       S = get_current_threads(Val(order), Box_x, u)
     end
+    @show norm(S)
     make_periodic!(u,Box_x,N)
     Fu = view(u,4N+1:4N+3*prod(J))
     F = reshape(Fu,(3,J...))
@@ -55,25 +56,25 @@ function RHS_D(u,t,p_RHSC)
         mul!(view(dF,1,i,:), Dy, view(F,3,i,:),one(eltype(F)))
         mul!(view(dF,3,i,:), Dy , view(F,1,i,:),one(eltype(F)))
         end
-        @threads for j in 1:J[2]
+      @threads for j in 1:J[2]
         mul!(view(dF,2,:,j), Dx, view(F,3,:,j),-one(eltype(F)))
         mul!(view(dF,3,:,j), Dx, view(F,2,:,j),-one(eltype(F)),one(eltype(F)))
-        end
+      end
         if dissipation # take away dissipation
-        @threads for i in 1:J[1]
+          @threads for i in 1:J[1]
           mul!(view(dF,1,i,:), Δy, view(F,1,i,:), σy, one(eltype(F)))
           mul!(view(dF,2,i,:), Δy, view(F,2,i,:), σy, one(eltype(F)))
           mul!(view(dF,3,i,:), Δy, view(F,3,i,:), σy, one(eltype(F)))
           end
-        @threads for j in 1:J[2]
+          @threads for j in 1:J[2]
           mul!(view(dF,1,:,j), Δx, view(F,1,:,j), σx, one(eltype(F)))
           mul!(view(dF,2,:,j), Δx, view(F,2,:,j), σx, one(eltype(F)))
           mul!(view(dF,3,:,j), Δx, view(F,3,:,j), σx, one(eltype(F)))
           end
         end
-      else
+    else
         du[4N+1:4N+3*prod(J)] .= 0.0
-      end
+    end
 
       @threads for j in 1:J[2]
         for i in 1:J[1]
@@ -95,7 +96,7 @@ function RHS_D(u,t,p_RHSC)
 end
 
 function RHS_D_slim!(::Val{Order},u,t,p_RHSC) where {Order} #version to optimize
-  N, J, Box, _, n, S, du, get_density!, get_current_threads, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation  = p_RHSC
+  N, J, Box, _, n, S, du, get_density!, get_current, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation  = p_RHSC
   par_grid = (N, J, Box, Order)
   L = [(Box[2d] - Box[2d-1]) for d = 1:D]
   make_periodic!(u,Box_x,N)
@@ -112,11 +113,10 @@ function RHS_D_slim!(::Val{Order},u,t,p_RHSC) where {Order} #version to optimize
   v = zeros(Float64, N, 2)
   n0 = N/prod(J) # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
   get_indices_and_y_trans!(idx, y, r, J, L)
-  v_trans!(Val(D), v, N, n0, u)
-  # v is already divided by n0! So we don't need to divide again here.
-  S = get_current_slim(Val(Order), Box_x, J, local_results, idx, y, v)
+  v_trans!(Val(D), v, N, u)
+  S = get_current(Val(Order), Box_x, J, local_results, idx, y, v)
      
-    
+    @show norm(S)
     Fu = view(u,4N+1:4N+3*prod(J))
     F = reshape(Fu,(3,J...))
     E = F[1:2,:,:]
@@ -160,7 +160,7 @@ function RHS_D_slim!(::Val{Order},u,t,p_RHSC) where {Order} #version to optimize
         end
       end
 
-      interp = Interpolate_All_EBv_1_slim(Val(Order), E, B, v, idx, y, J, Box)
+      interp = Interpolate(Val(Order), E, B, v, idx, y, J, Box)
       @threads for i in 1:N
         #@inbounds @views v = p2v(u[i*2D-D+1:i*2D])
         # v = p2v(u[range_p(i, D)])

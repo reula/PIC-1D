@@ -396,9 +396,9 @@ function v_trans(::Val{D}, N, n0, u) where {D}
   v
 end
 
-function v_trans!(::Val{D}, v, N, n0, u) where {D}
+function v_trans!(::Val{D}, v, N, u) where {D}
   @threads for i in 1:N
-      @fastmath @inbounds @views vtmp = p2v(u[i*2D-D+1:i*2D]) / n0
+      @fastmath @inbounds @views vtmp = p2v(u[i*2D-D+1:i*2D])
       for d in 1:D
           @inbounds v[i, d] = vtmp[d]
       end
@@ -439,8 +439,7 @@ function (storage::Current2DTrans)(::Val{Order}, Box::NTuple{4,Float64}, u::Vect
   r = [u[(i-1)*2D+d] for i in 1:N, d in 1:D]
 
   get_indices_and_y_trans!(idx, y, r, J, L; yshift = shift)
-  v_trans!(Val(D), v, N, n0, u)
-  # v is already divided by n0! So we don't need to divide again here.
+  v_trans!(Val(D), v, N, u)
 
   #idx_sorted, y_sorted, v_sorted = sort_arrays_by_index(idx, y, v)
 
@@ -458,7 +457,7 @@ function (storage::Current2DTrans)(::Val{Order}, Box::NTuple{4,Float64}, u::Vect
       end
     end
   end
-  reduce(+, eachslice(local_results, dims=4))
+  reduce(+, eachslice(local_results, dims=4))/n0
 end
 
 function get_current_slim(::Val{Order}, Box::NTuple{4,Float64}, J, local_results, idx, y, v; shift::Float64=0.0) where {Order}
@@ -467,7 +466,7 @@ function get_current_slim(::Val{Order}, Box::NTuple{4,Float64}, J, local_results
     error("dimension mismatch")
   end
 
-  #n0 = N/prod(J) # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
+  n0 = N/prod(J) # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
   bound = static_bound(Val(Order))
 
   #L = [(Box[2d] - Box[2d-1]) for d = 1:D]
@@ -493,5 +492,5 @@ function get_current_slim(::Val{Order}, Box::NTuple{4,Float64}, J, local_results
       end
     end
   end
-  reduce(+, eachslice(local_results, dims=4))
+  reduce(+, eachslice(local_results, dims=4))/n0
 end
