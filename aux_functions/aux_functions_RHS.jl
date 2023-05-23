@@ -95,9 +95,9 @@ function RHS_D(u,t,p_RHSC)
     return du[:]
 end
 
-function RHS_D_slim!(::Val{Order},u,t,p_RHSC) where {Order} #version to optimize
-  N, J, Box, _, n, S, du, get_density!, get_current, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation  = p_RHSC
-  par_grid = (N, J, Box, Order)
+function RHS_D_slim!(u,t,p_RHSC) #version to optimize
+  Order ,N, J, Box, _, n, S, du, get_density!, get_current, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation  = p_RHSC
+  par_grid = (N, J, Box, Val{Order})
   L = [(Box[2d] - Box[2d-1]) for d = 1:D]
   make_periodic!(u,Box_x,N)
   #r = [u[(i-1)*2D+d] for i in 1:N, d in 1:D] # no se como hacerlo funcionar con threads
@@ -116,7 +116,7 @@ function RHS_D_slim!(::Val{Order},u,t,p_RHSC) where {Order} #version to optimize
   v_trans!(Val(D), v, N, u)
   S = get_current(Val(Order), Box_x, J, local_results, idx, y, v)
      
-    @show norm(S)
+    #@show norm(S)
     Fu = view(u,4N+1:4N+3*prod(J))
     F = reshape(Fu,(3,J...))
     E = F[1:2,:,:]
@@ -169,6 +169,7 @@ function RHS_D_slim!(::Val{Order},u,t,p_RHSC) where {Order} #version to optimize
           @inbounds du[i*2D-D+d] = -interp[i, d]
         end
       end
+      return du[:]
   end
 
   function RHS_D_opt(u,t,p_RHSC) #version to optimize
