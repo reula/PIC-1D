@@ -390,9 +390,9 @@ function (storage::Density2DTrans)(::Val{Order}, Box::NTuple{4,Float64}, u::Vect
   reduce(+, eachslice(local_results, dims=3))
 end
 
-function v_trans(::Val{D}, N, n0, u) where {D}
+function v_trans(::Val{D}, N, u) where {D}
   v = Matrix{Float64}(undef, N, D)
-  v_trans!(Val(D), v, N, n0, u)
+  v_trans!(Val(D), v, N, u)
   v
 end
 
