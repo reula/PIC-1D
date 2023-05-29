@@ -150,4 +150,17 @@ function get_all_positions(u,D,N)
   end
   return pos[:]
 end
-    
+
+"""
+function to study momentum space rotation when magnetic field is present
+"""
+function get_theta_x(N::Int, par_dis, ::Val{2})
+    p=zeros(2)
+    P2y = P2x = 0.0
+    for i in 1:N
+        get_momenta!(p,i,par_dis)
+        P2x = P2x + abs(p[1])
+        P2y = P2y + abs(p[2])
+    end
+    return P2x/sqrt(P2x^2+P2y^2)
+end
