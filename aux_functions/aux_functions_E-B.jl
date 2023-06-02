@@ -147,7 +147,7 @@ function constraint_test(E,ρ,J,Box, ϕ, ∇ϕ, pars)
       end
   end
 
-  return DivE_∇ϕ_test, ρf_ϕ_test, abs((DivE_∇ϕ_test - ρf_ϕ_test)/ρf_ϕ_test)
+  return DivE_∇ϕ_test, ρf_ϕ_test, abs((DivE_∇ϕ_test - ρf_ϕ_test)/ρf_ϕ_test), abs((DivE_∇ϕ_test - ρf_ϕ_test))
 end
 
   
