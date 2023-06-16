@@ -33,7 +33,7 @@ function get_density_2D!(u, n, par_grid; yshift=0.0)
   if D != length(J) 
     error("dimension mismach")
    end
-  n0 = N/prod(J)
+  n0 = N/prod(J) #/volume(Box)
   j = [1,1]
   y = [0.0,0.0]
   #@show u
@@ -70,7 +70,7 @@ function get_density_threads_2D!(u, n, par, shift)
   y .= 0.0
   Tn .= 0.0 
   #s = [0 for i in 1:nthreads()]
-  n0 = N
+  n0 = N/prod(J)#/volume(Box)
   # Evaluate number density.
   bound = Int64(ceil(order/2))
   @threads  for i in 1:N
@@ -211,7 +211,7 @@ function get_current_rel_2D!(u, S, par_grid;shift=0.0)
   #fill!(S,[0.0,0.0])
   v = Array{Float64}(undef,2)
   #n0 = N/vol # correct expression but not needed
-  n0 = N
+  n0 = N/prod(J)  # dividimos aquí para hacerlo más eficiente.
   for i in 1:N
     s = (i-1)*2D + 1
     r = view(u,s:s+D-1)
@@ -252,7 +252,7 @@ function get_current_threads_2D_vector!(u, S, par; shift=0.0)
   v = Array{Float64}(undef,2,nthreads())
   TS .= 0.0 
   #s = [0 for i in 1:nthreads()]
-  n0 = N
+  n0 = N/prod(J)  # dividimos aquí para hacerlo más eficiente.
   # Evaluate number density.
    @threads for i in 1:N
               #s = (i-1)*2D + 1
@@ -304,7 +304,7 @@ function get_current_threads_2D!(u::Array{Float64,1}, S::Array{Float64,3}, par; 
   v = Array{Float64}(undef,2,nthreads())
   TS .= 0.0 
   #s = [0 for i in 1:nthreads()]
-  n0 = N
+  n0 = N/prod(J)  # dividimos aquí para hacerlo más eficiente.
   # Evaluate number density.
   @threads for i in 1:N
     #s = (i-1)*2D + 1
@@ -432,7 +432,7 @@ function (storage::Current2DTrans)(::Val{Order}, Box::NTuple{4,Float64}, u::Vect
     error("dimension mismatch")
   end
 
-  n0 = N/prod(J) # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
+  n0 = N/prod(J)*volume(Box) # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
   bound = static_bound(Val(Order))
 
   L = [(Box[2d] - Box[2d-1]) for d = 1:D]
@@ -466,7 +466,7 @@ function get_current_slim(::Val{Order}, Box::NTuple{4,Float64}, J, local_results
     error("dimension mismatch")
   end
 
-  n0 = N/prod(J) # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
+  n0 = N/prod(J)*volume(Box) # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
   bound = static_bound(Val(Order))
 
   #L = [(Box[2d] - Box[2d-1]) for d = 1:D]

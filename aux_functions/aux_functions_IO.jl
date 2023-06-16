@@ -271,33 +271,40 @@ end
     return v
   end
 
-  function retrieve_data(data, par_grid, par_evolv; M_last=nothing)
+  function retrieve_data(data, par_grid, par_evolv; M_last=nothing, Step=1)
     (N, L, J, dx, order) = par_grid
     (t_i, t_f, M, M_g, dt) = par_evolv
     v = zeros(2N+J,M_g)
     if M_last !== nothing # if we gave some values, then use it.
         M_g = M_last
     end
-    for j in 1:M_g
-        tiempo = @sprintf("%05d", j)
+    M_r = (M_last-1) ÷ Step
+    v = zeros(2D*N+3*prod(J),M_r)
+    i = 1
+    for j in 1:M_r
+        i = i+Step
+        tiempo = @sprintf("%05d", i)
         v[:,j] = data["u/u_$tiempo"]
     end
     return v
   end
   
-  function retrieve_data_D(data, par_grid, par_evolv; M_last=nothing)
+  function retrieve_data_D(data, par_grid, par_evolv; M_last=nothing, Step=1)
     (N, J, Box, order) = par_grid
     (t_i, t_f, M, M_g, dt) = par_evolv
     D = length(J)
-    @show v = zeros(2D*N+3*prod(J),M_g)
 
     if M_last !== nothing # if we gave some values, then use it.
         M_g = M_last
     end
+    M_r = (M_last-1) ÷ Step
+    v = zeros(2D*N+3*prod(J),M_r)
+    i = 1
     
-    for j in 1:M_g
-        tiempo = @sprintf("%05d", j)
-        v[:,j] = data["u/u_$tiempo"]
+    for j in 1:M_r
+      i = i+Step
+      tiempo = @sprintf("%05d", i)
+      v[:,j] = data["u/u_$tiempo"]
     end
     return v
   end
