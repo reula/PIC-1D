@@ -278,13 +278,13 @@ end
     if M_last !== nothing # if we gave some values, then use it.
         M_g = M_last
     end
-    M_r = (M_last-1) ÷ Step
+    M_r = (M_last-1) ÷ Step + 1
     v = zeros(2D*N+3*prod(J),M_r)
     i = 1
     for j in 1:M_r
-        i = i+Step
         tiempo = @sprintf("%05d", i)
         v[:,j] = data["u/u_$tiempo"]
+        i = i+Step
     end
     return v
   end
@@ -297,14 +297,14 @@ end
     if M_last !== nothing # if we gave some values, then use it.
         M_g = M_last
     end
-    M_r = (M_last-1) ÷ Step
+    M_r = (M_last-1) ÷ Step + 1
     v = zeros(2D*N+3*prod(J),M_r)
     i = 1
     
     for j in 1:M_r
-      i = i+Step
       tiempo = @sprintf("%05d", i)
       v[:,j] = data["u/u_$tiempo"]
+      i = i+Step
     end
     return v
   end

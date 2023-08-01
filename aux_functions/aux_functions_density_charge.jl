@@ -432,7 +432,7 @@ function (storage::Current2DTrans)(::Val{Order}, Box::NTuple{4,Float64}, u::Vect
     error("dimension mismatch")
   end
 
-  n0 = N/prod(J)*volume(Box) # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
+  n0 = N/prod(J) # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
   bound = static_bound(Val(Order))
 
   L = [(Box[2d] - Box[2d-1]) for d = 1:D]
@@ -466,7 +466,7 @@ function get_current_slim(::Val{Order}, Box::NTuple{4,Float64}, J, local_results
     error("dimension mismatch")
   end
 
-  n0 = N/prod(J)*volume(Box) # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
+  n0 = N/prod(J) # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
   bound = static_bound(Val(Order))
 
   #L = [(Box[2d] - Box[2d-1]) for d = 1:D]

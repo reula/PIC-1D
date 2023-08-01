@@ -213,6 +213,7 @@ end
   stencil = Int64(ceil((Order+1)/2))
   D = length(J)
   val_order = Val(Order)
+  #dV = prod(differentials(Box,J))
 
   if D==2
     vi = zeros(Float64, N, 2)
