@@ -106,10 +106,10 @@ function get_local_averages_threads(u,par_grid, par_f)
 end
   
 
-function get_local_averages_threads_D(u,par_grid, par_f)
+function get_local_averages_threads_D(u,par_grid)#, par_f)
     
     (N, J, Box, order) = par_grid
-    (θ, nm, κ) = par_f
+    #(θ, nm, κ) = par_f
     D = length(J)
   
     TS = zeros(D,J..., nthreads())
@@ -167,8 +167,8 @@ function load_averages(file_name, j, par_grid, pars_f)
       end
   end
   
-function load_averages_D(file_name, j, par_grid, pars_f)
-    ρ, S, E_field, B_field, Energy_K, Energy_E, E_field_T, p_T, Q_T, S_T, T, θ_m #=, E_mode=# = get_local_averages_threads_D(u,par_grid, pars_f)
+function load_averages_D(file_name, j, par_grid)#, pars_f)
+    ρ, S, E_field, B_field, Energy_K, Energy_E, E_field_T, p_T, Q_T, S_T, T, θ_m #=, E_mode=# = get_local_averages_threads_D(u,par_grid)#, pars_f)
     tiempo = @sprintf("%05d", j)
     jldopen(file_name, "a+") do file
         file["n_$(tiempo)"] = ρ
@@ -177,7 +177,7 @@ function load_averages_D(file_name, j, par_grid, pars_f)
         file["B_field_$(tiempo)"] = B_field
         file["Energy_E_$(tiempo)"] = Energy_E
         file["Energy_K_$(tiempo)"] = Energy_K
-        file["EField_T_$(tiempo)"] = E_field_T
+        file["E_Field_T_$(tiempo)"] = E_field_T
         file["p_T_$(tiempo)"] = p_T
         file["Q_T_$(tiempo)"] = Q_T
         file["S_T_$(tiempo)"] = S_T
@@ -193,9 +193,9 @@ function retrieve_average_data_D(data, par_grid, par_evolv; M_last=nothing)
     D = length(J)
     #v = zeros(2N+J,M_g)
     n_t = zeros(J...,M_g)
-    S_t = zeros(D,J...,M_g)
+    S_t = zeros(J...,D,M_g)
     E_field_t = zeros(D,J...,M_g)
-    E_field_t = zeros(J...,M_g)
+    B_field_t = zeros(J...,M_g)
     E_field_T = zeros(M_g)
     Energy_K = zeros(M_g)
     Energy_E = zeros(M_g)
@@ -203,28 +203,28 @@ function retrieve_average_data_D(data, par_grid, par_evolv; M_last=nothing)
     p_T = zeros(D,M_g)
     Q_T = zeros(M_g)
     S_T = zeros(D,M_g)
-    T = zeros(M_g)
+    T_t = zeros(M_g)
     θ_m = zeros(M_g)
     if M_last !== nothing # if we gave some values, then use it.
       M_g = M_last
     end
     for j in 1:M_g
         tiempo = @sprintf("%05d", j)
-        n_t[:,j] = data["n_$(tiempo)"]
-        S_t[:,j] = data["S_$(tiempo)"]
-        E_field_t[:,j] = data["Efield_$(tiempo)"]
-        B_field_t[:,j] = data["Efield_$(tiempo)"]
+        n_t[:,:,j] = data["n_$(tiempo)"]
+        S_t[:,:,:,j] = data["S_$(tiempo)"]
+        E_field_t[:,:,:,j] = data["E_field_$(tiempo)"]
+        B_field_t[:,:,j] = data["B_field_$(tiempo)"]
         Energy_K[j] = data["Energy_K_$(tiempo)"]
         Energy_E[j] = data["Energy_E_$(tiempo)"]
-        E_field_T[j] = data["E_field_T_$(tiempo)"]
-        p_T[j] = data["p_T_$(tiempo)"]
+        E_field_T[j] = data["EField_T_$(tiempo)"]
+        p_T[:,j] = data["p_T_$(tiempo)"]
         Q_T[j] = data["Q_T_$(tiempo)"]
-        S_T[j] = data["S_T_$(tiempo)"]
-        T[j] = data["T_$(tiempo)"]
+        S_T[:,j] = data["S_T_$(tiempo)"]
+        T_t[j] = data["T_$(tiempo)"]
         θ_m[j] = data["θ_m_$(tiempo)"]
         #E_mode[j] = data["E_mode_$(tiempo)"]
     end
-    return n_t, S_t, E_field_t, B_field_t, (Energy_E,  Energy_K, E_field_T, p_T, Q_T, S_T, T, θ_m #=, E_mode=#)
+    return n_t, S_t, E_field_t, B_field_t, Energy_E,  Energy_K, E_field_T, p_T, Q_T, S_T, T_t, θ_m #=, E_mode=# 
   end
   
 function retrieve_average_data(data, par_grid, par_evolv; M_last=nothing)
