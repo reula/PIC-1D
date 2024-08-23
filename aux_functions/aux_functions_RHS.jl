@@ -97,6 +97,7 @@ end
 
 function RHS_D_slim!(u,t,p_RHSC) #version to optimize
   Order ,N, J, Box, _, n, S, du, get_density!, get_current, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation  = p_RHSC
+  (order, N, J, Box_x, order, n, S, du, get_density_2D!, get_current_slim, Interpolate_All_EBv_2_slim, Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation) ;
   par_grid = (N, J, Box, Val{Order})
   L = [(Box[2d] - Box[2d-1]) for d = 1:D]
   make_periodic!(u,Box_x,N)
@@ -235,6 +236,67 @@ function RHS_D_slim!(u,t,p_RHSC) #version to optimize
       return du[:]
   end
 
+function RHS_Flux(u,t,par_RHS_Flux) #version to optimize
+  if nthreads() == 1
+    N, J, Box, dx, order, n, S, du, get_density!, get_current, Interpolate, maxwell, par_WENOZ = par_RHS_Flux
+    #par_grid = (N, L, J, dx, order)
+  else
+    Order, N, J, Box, dx, _, n, S, du, get_density!, get_current, Interpolate, maxwell, par_WENOZ = par_RHS_Flux
+    #par_grid = (N, L, J, dx, order)
+  end
+  par_grid = (N, J, Box, Val{Order})
+  L = [(Box[2d] - Box[2d-1]) for d = 1:D]
+  make_periodic!(u,Box_x,N)
+  #r = [u[(i-1)*2D+d] for i in 1:N, d in 1:D] # no se como hacerlo funcionar con threads
+  r = zeros(Float64,N,D)
+  @threads for i in 1:N
+              for d in 1:D
+              @inbounds   r[i,d] = u[(i-1)*2D+d]
+              end
+            end
+  local_results = zeros(Float64, J[1], J[2], 2, Threads.nthreads())
+  idx = ones(Int64, N, 2)
+  y = zeros(Float64, N, 2)
+  v = zeros(Float64, N, 2)
+  n0 = N/prod(J) # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
+  get_indices_and_y_trans!(idx, y, r, J, L)
+  v_trans!(Val(D), v, N, u)
+  S = get_current(Val(Order), Box_x, J, local_results, idx, y, v)
+     
+    #@show norm(S)
+    Fu = view(u,4N+1:4N+3*prod(J))
+    F = reshape(Fu,(3,J...))
+    E = F[1:2,:,:]
+    B = F[3,:,:]
+      
+    du .= 0.0
+    dFu = view(du,4N+1:4N+3*prod(J)) # I use them for the sources
+    dF = reshape(dFu,(3,J...))
+
+    if maxwell  #take away waves if false
+        wenoz!(dFu, F, par_WENOZ, t)
+    end
+
+      @threads for j in 1:J[2]
+        for i in 1:J[1]
+            for l in 1:2
+         #dF[l,i,j] +=  S[i,j,l] # particles have negative sign!
+         @inbounds dF[l,i,j] +=  S[i,j,l]
+            end
+        end
+      end
+
+      interp = Interpolate(Val(Order), E, B, v, idx, y, J, Box)
+      @threads for i in 1:N
+        #@inbounds @views v = p2v(u[i*2D-D+1:i*2D])
+        # v = p2v(u[range_p(i, D)])
+        for d in 1:D
+          @inbounds du[(i-1)*2D+d] = v[i,d] # relativistic factor (u is the momentum)
+          @inbounds du[i*2D-D+d] = -interp[i, d]
+        end
+      end
+      return du[:]
+end
 
 function RK4_Step!(f,y0,t0,h,p)
     k1 = h*f(y0,t0,p)
@@ -245,4 +307,8 @@ function RK4_Step!(f,y0,t0,h,p)
 end
 
 
-
+function TVD3_Step!(f,y0,t0,h,pf)
+  y1 = y0 + h*f(y0,t0,pf) 
+  y2 = (3*y0 + y1 + h*f(y1,t0,pf))/4
+  y0 .= (y0 + 2*y2 + 2*h*f(y2,t0,pf))/3
+end

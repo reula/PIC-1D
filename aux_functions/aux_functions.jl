@@ -8,25 +8,29 @@ using StaticArrays
 using Base.Threads
 using Printf
 
-include("aux_functions_poisson_divergence.jl")
+includet("aux_functions_poisson_divergence.jl")
 
-include("aux_functions_particles.jl")
+includet("aux_functions_particles.jl")
 
-include("aux_functions_E-B.jl")
+includet("aux_functions_E-B.jl")
 
-include("aux_functions_shapes.jl")
+includet("aux_functions_shapes.jl")
 
-include("aux_functions_Interpolate.jl")
+includet("aux_functions_Interpolate.jl")
 
-include("aux_functions_Integrate.jl")
+includet("aux_functions_Integrate.jl")
 
-include("aux_functions_density_charge.jl")
+includet("aux_functions_density_charge.jl")
 
-include("aux_functions_grid.jl")
+includet("aux_functions_grid.jl")
 
-include("aux_functions_RHS.jl")
+includet("aux_functions_RHS.jl")
 
-include("aux_functions_IO.jl")
+includet("aux_functions_IO.jl")
+
+includet("choques_utils.jl")
+
+includet("aux_functions_RHS.jl")
 
 
 function compare_electric_field_constraints(v,j,par_grid, par_evolv, run_name, save_plots)

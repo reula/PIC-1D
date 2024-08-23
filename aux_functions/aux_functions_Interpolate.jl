@@ -186,7 +186,7 @@ function Interpolate_All_EBv_1_slim(::Val{Order}, E::Array{Float64,3}, B::Matrix
   val_order = Val(Order)
 
   if D==2
-    vi = zeros(Float64, N, 2)
+    Fi = zeros(Float64, N, 2)
     @threads for i in 1:N
       @inbounds for m in (-stencil):(stencil +1)
         w2 = W(val_order, -y[i,2] + m)
@@ -198,12 +198,12 @@ function Interpolate_All_EBv_1_slim(::Val{Order}, E::Array{Float64,3}, B::Matrix
 
           EBv1 = E[1,idx1,idx2] - v[i,2]*B[idx1,idx2]
           EBv2 = E[2,idx1,idx2] + v[i,1]*B[idx1,idx2]
-          vi[i, 1] += EBv1 * ws
-          vi[i, 2] += EBv2 * ws
+          Fi[i, 1] += EBv1 * ws
+          Fi[i, 2] += EBv2 * ws
         end
       end
     end
-    return vi
+    return Fi
   else
     error("Not yet implemented for D=$D")
   end
@@ -216,15 +216,15 @@ end
   #dV = prod(differentials(Box,J))
 
   if D==2
-    vi = zeros(Float64, N, 2)
+    Fi = zeros(Float64, N, 2)
     @threads for i in 1:N
       @inbounds for m in (-stencil):(stencil +1)
-        w2 = W(val_order, -y[i,2] + 1/2 + m)
+        w2 = W(val_order, -y[i,2] + 1/2 + m)/4
         idx2 = mod1(idx[i,2]+m,J[2])
         idx2p1 = mod1(idx[i,2]+m+1,J[2])
         @inbounds for l in (-stencil):(stencil +1)
           w1 = W(val_order, -y[i,1] + 1/2 + l)
-          ws = w2 * w1 / 4
+          ws = w2 * w1
           idx1 = mod1(idx[i,1]+l,J[1])
           idx1p1 = mod1(idx[i,1]+l+1,J[1])
           EBv1 = E[1,idx1,idx2] + E[1,idx1p1,idx2] + E[1,idx1,idx2p1] + E[1,idx1p1,idx2p1]
@@ -232,12 +232,12 @@ end
           Bz = B[idx1,idx2] + B[idx1p1,idx2] + B[idx1,idx2p1] + B[idx1p1,idx2p1]
           EBv1 = EBv1 - v[i,2]*Bz
           EBv2 = EBv2 + v[i,1]*Bz
-          vi[i, 1] += EBv1 * ws
-          vi[i, 2] += EBv2 * ws
+          Fi[i, 1] += EBv1 * ws
+          Fi[i, 2] += EBv2 * ws
         end
       end
     end
-    return vi
+    return Fi
   else
     error("Not yet implemented for D=$D")
   end
