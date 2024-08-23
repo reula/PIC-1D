@@ -194,6 +194,7 @@ function retrieve_average_data_D(data, par_grid, par_evolv; M_last=nothing)
     #v = zeros(2N+J,M_g)
     n_t = zeros(J...,M_g)
     S_t = zeros(J...,D,M_g)
+    #println(size(S_t))
     E_field_t = zeros(D,J...,M_g)
     B_field_t = zeros(J...,M_g)
     E_field_T = zeros(M_g)
@@ -221,23 +222,19 @@ function retrieve_average_data_D(data, par_grid, par_evolv; M_last=nothing)
           E_field_t[:,:,:,j] = data["E_field_$(tiempo)"]
           B_field_t[:,:,j] = data["B_field_$(tiempo)"]
         end
+        #averaged quantities
         Energy_K[j] = data["Energy_K_$(tiempo)"]
         Energy_E[j] = data["Energy_E_$(tiempo)"]
         E_field_T[j] = data["EField_T_$(tiempo)"]
         Q_T[j] = data["Q_T_$(tiempo)"]
-        if D == 1
-          S_T[j] = data["S_T_$(tiempo)"]
-          p_T[j] = data["p_T_$(tiempo)"]
-        elseif D == 2
-          S_T[:,j] = data["S_T_$(tiempo)"]
-          p_T[:,j] = data["p_T_$(tiempo)"]
-        end
         S_T[:,j] = data["S_T_$(tiempo)"]
-        T[j] = data["T_$(tiempo)"]
+        p_T[:,j] = data["p_T_$(tiempo)"]
+        T_t[j] = data["T_$(tiempo)"]
         θ_m[j] = data["θ_m_$(tiempo)"]
         #E_mode[j] = data["E_mode_$(tiempo)"]
     end
-    return n_t, S_t, E_field_t, B_field_t, Energy_E,  Energy_K, E_field_T, p_T, Q_T, S_T, T_t, θ_m #=, E_mode=# 
+    println(Energy_E)
+    return n_t, S_t, E_field_t, B_field_t, Energy_E, Energy_K, E_field_T, p_T, Q_T, S_T, T_t, θ_m #=, E_mode=# 
   end
   
 function retrieve_average_data(data, par_grid, par_evolv; M_last=nothing)
