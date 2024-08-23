@@ -77,7 +77,7 @@ function build_initial_data(data_name::String, pars, f_x, f_x_max, par_f_x, inte
     end
   end
 
-function build_initial_data_D(data_name::String, pars, f_x, f_x_max, par_f_x, Box_x, f_p, f_p_max, par_f_p, Box_p)
+function build_initial_data_D(data_name::String, pars, f_x, f_x_max, par_f_x, Box_x, f_p, f_p_max, par_f_p, Box_p; symmetric=true)
       N, = pars
       D = length(Box_x)÷2
       par_dis = zeros(D*N*2)
@@ -89,11 +89,16 @@ function build_initial_data_D(data_name::String, pars, f_x, f_x_max, par_f_x, Bo
       for i in 1:N
         par_dis[(i-1)*2*D+1:(i-1)*2*D+D] = random_sampling_from_distribution_D(f_x,f_x_max,par_f_x,Box_x)
       end
-  
+      if symmetric
       # We set part of the distribution in antisymmetric form so that the total momentum vanishes.
-      for i in 1:2D:D*N
+        for i in 1:2D:D*N
           par_dis[i+D:(i-1)+2D] = random_sampling_from_distribution_D(f_p,f_p_max,par_f_p,Box_p)
           par_dis[D*N + i+D:D*N + i-1+2D] = - par_dis[i+D:(i-1)+2D]
+        end
+      else
+        for i in 1:2D:2D*N
+          par_dis[i+D:(i-1)+2D] = random_sampling_from_distribution_D(f_p,f_p_max,par_f_p,Box_p)
+        end
       end
   
       file_name = "Initial_Distributions/" * data_name * ".jld2"
@@ -155,7 +160,7 @@ in the frame where one is at rest and the other at a velocity v with respect to 
 Note that we multiply by a factor exp(1/θ) each term because otherwise the numerical range
  of values goes to zero.
 """
-function f_p_weibel(p::Array,par_f_p; m=1)
+function f_p_two_particle_distribution(p::Array,par_f_p; m=1)
   θ1, θ2, v::Array, norm, D = par_f_p
   γ = 1/sqrt(1 - v'*v)
   return exp((m-sqrt(m^2 + p'*p))/θ1) * exp((m-sqrt(m^2 + p'*p) - v'*p)/θ2*γ) / norm
@@ -163,7 +168,7 @@ function f_p_weibel(p::Array,par_f_p; m=1)
   #-(sqrt(m^2 + p'*p) + v'*p)/θ2*γ
 end
 
-function f_p_weibel_max(par_f_p; m=1)
+function f_p_two_particle_distribution_max(par_f_p; m=1)
   θ1, θ2, v::Array, norm, D = par_f_p
   γ = 1/sqrt(1 - v'*v) 
   return exp(-m/θ2*(1-1/γ)) / norm
@@ -174,6 +179,9 @@ f_p_thermal(p,(θ,)) = exp(- p^2/θ/2) / sqrt(θ*π*2)
 f_p_thermal(p::Array,(θ,D)) = exp(- (p'*p)/θ/2) / sqrt(θ*π*2)^D
 f_p_thermal_max((θ,D)) = 1 / sqrt(θ*π*2)^D
 
+"""The function f_p_weibel gives the distribution used in the paper of [Morse and Nielsen](http://dx.doi.org/10.1063/1.1693518)
+it is non-relativistic. They use Ax=25.
+"""
 f_p_weibel_norel(p::Array,(θ,D,Ax)) = exp(- (p'*p - p[1]^2*(Ax/(1+Ax)))/θ/2) / sqrt(θ*π*2)^D / sqrt(1+Ax)
 f_p_weibel_norel_max((θ,D,Ax)) = 1 / sqrt(θ*π*2)^D / sqrt(1+Ax)
 
