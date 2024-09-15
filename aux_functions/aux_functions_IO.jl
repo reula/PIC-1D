@@ -225,7 +225,7 @@ function retrieve_average_data_D(data, par_grid, par_evolv; M_last=nothing)
         #averaged quantities
         Energy_K[j] = data["Energy_K_$(tiempo)"]
         Energy_E[j] = data["Energy_E_$(tiempo)"]
-        E_field_T[j] = data["EField_T_$(tiempo)"]
+        E_field_T[j] = data["E_Field_T_$(tiempo)"]
         Q_T[j] = data["Q_T_$(tiempo)"]
         S_T[:,j] = data["S_T_$(tiempo)"]
         p_T[:,j] = data["p_T_$(tiempo)"]

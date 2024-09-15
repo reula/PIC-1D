@@ -218,14 +218,15 @@ function get_current_rel_2D!(u, S, par_grid;shift=0.0)
     p = view(u,s+D:s+2*D-1) # in the relativistic version we compute p instead of v
     j = [1,1]
     y = [0.0,0.0]
-    @inbounds j, y = get_index_and_y!(j,y,r,J,Box)
+    @inbounds get_index_and_y!(j,y,r,J,Box)
     @inbounds  y[:] .= y[:] .- shift # shift must be the same in all directions!
     #@inbounds v = p2v(p) / vol / n0 # correct but can be made simpler
     @inbounds v = p2v(p) / n0 # dividimos aquí para hacerlo más eficiente.
     for l in (-bound):(bound+1) 
       for m in (-bound):(bound+1)
-      @inbounds S[:,mod1(j[1] + l, J[1]), mod1(j[2] + m, J[2])] += Shape(order, -y[1] + l) * Shape(order, -y[2] + m) * v;
-      end
+      #@inbounds S[:,mod1(j[1] + l, J[1]), mod1(j[2] + m, J[2])] += Shape(order, -y[1] + l) * Shape(order, -y[2] + m) * v;
+      @inbounds S[mod1(j[1] + l, J[1]), mod1(j[2] + m, J[2]),:] += Shape(order, -y[1] + l) * Shape(order, -y[2] + m) * v;
+    end
     end
   end
   return S[:,:,:] # allready normalized with n0

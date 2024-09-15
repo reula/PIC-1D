@@ -62,7 +62,7 @@ return plt
 end
 
 
-
+#=
 function get_temperature(u,N;m=1)
   return m*var(u[N+1:2N])
 end
@@ -70,6 +70,7 @@ end
 function get_temperature_rel(u,N;m=1)
   return m*var(p2v.(u[N+1:2N]))
 end
+=#
 
 """
 Chequeada en ini_dat_v2.ipynb
@@ -86,6 +87,7 @@ end
 
 
 
+#=
 function get_energy_rel(u,p)
   L, N, J = p
   dx = L/J
@@ -102,6 +104,7 @@ function get_energy_rel(u,p)
   # return energy_K,  dx * energy_E / 2 * n0
   return energy_K / n0,  dx * energy_E / 2 # normalized version
 end
+=#
 
 function get_energy_rel(u,par; m=1)
   Box, N, J= par
@@ -109,16 +112,16 @@ function get_energy_rel(u,par; m=1)
   D = length(dx)
   n0 = N /volume(Box)
   energy_K = 0.0
-  energy_E = 0.0
+  #energy_E = 0.0
   p = zeros(D)
   for i in 1:N
     get_momenta!(p,i,u)
-    energy_K = energy_K + (sqrt(m^2+p'*p/m^2) - m)
+    energy_K = energy_K + (sqrt(m^2+p'*p) - m) # we take out the rest mass
   end
   
     #Fu = view(u,4N+1, 4N+3*prod(J))
 
-    energy_E = u[4N+1:end]'*u[4N+1:end]
+    energy_E = u[2D*N+1:end]'*u[2D*N+1:end]
 
     #E = get_E(u,N,J)
     #B = get_B(u,N,J)

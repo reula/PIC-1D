@@ -32,15 +32,15 @@ end
 
 function RHS_D(u,t,p_RHSC)
     if nthreads() == 1
-      N, J, Box, order, n, S, du, get_density!, get_current, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation = p_RHSC
+      N, J, Box, order, n, S, du, get_density!, get_current, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, no_maxwell, dissipation = p_RHSC
       par_grid = (N, J, Box, order)
       get_current(u, S, par_grid)
     else
-      N, J, Box, order, n, S, du, get_density!, get_current_threads, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation  = p_RHSC
+      N, J, Box, order, n, S, du, get_density!, get_current_threads, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, no_maxwell, dissipation  = p_RHSC
       par_grid = (N, J, Box, order)
       S = get_current_threads(Val(order), Box_x, u)
     end
-    @show norm(S)
+    #@show norm(S)
     make_periodic!(u,Box_x,N)
     Fu = view(u,4N+1:4N+3*prod(J))
     F = reshape(Fu,(3,J...))
@@ -51,7 +51,7 @@ function RHS_D(u,t,p_RHSC)
     dFu = view(du,4N+1:4N+3*prod(J))
     dF = reshape(dFu,(3,J...))
 
-    if maxwell  #take away waves if false
+    if no_maxwell == false  #take away waves if false
       @threads for i in 1:J[1]
         mul!(view(dF,1,i,:), Dy, view(F,3,i,:),one(eltype(F)))
         mul!(view(dF,3,i,:), Dy , view(F,1,i,:),one(eltype(F)))
@@ -96,8 +96,8 @@ function RHS_D(u,t,p_RHSC)
 end
 
 function RHS_D_slim!(u,t,p_RHSC) #version to optimize
-  Order ,N, J, Box, _, n, S, du, get_density!, get_current, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation  = p_RHSC
-  (order, N, J, Box_x, order, n, S, du, get_density_2D!, get_current_slim, Interpolate_All_EBv_2_slim, Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation) ;
+  Order ,N, J, Box, _, n, S, du, get_density!, get_current, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, no_maxwell, dissipation  = p_RHSC
+  (order, N, J, Box_x, order, n, S, du, get_density_2D!, get_current_slim, Interpolate_All_EBv_2_slim, Dx, Δx, σx, Dy, Δy, σy, no_maxwell, dissipation) ;
   par_grid = (N, J, Box, Val{Order})
   L = [(Box[2d] - Box[2d-1]) for d = 1:D]
   make_periodic!(u,Box_x,N)
@@ -117,17 +117,17 @@ function RHS_D_slim!(u,t,p_RHSC) #version to optimize
   v_trans!(Val(D), v, N, u)
   S = get_current(Val(Order), Box_x, J, local_results, idx, y, v)
      
-    #@show norm(S)
-    Fu = view(u,4N+1:4N+3*prod(J))
-    F = reshape(Fu,(3,J...))
-    E = F[1:2,:,:]
-    B = F[3,:,:]
+  #@show norm(S)
+  Fu = view(u,4N+1:4N+3*prod(J))
+  F = reshape(Fu,(3,J...))
+  E = F[1:2,:,:]
+  B = F[3,:,:]
       
-    du .= 0.0
-    dFu = view(du,4N+1:4N+3*prod(J))
-    dF = reshape(dFu,(3,J...))
+  du .= 0.0
+  dFu = view(du,4N+1:4N+3*prod(J))
+  dF = reshape(dFu,(3,J...))
 
-    if maxwell  #take away waves if false
+  if no_maxwell == false  #take away waves if true
       @threads for i in 1:J[1]
         mul!(view(dF,1,i,:), Dy, view(F,3,i,:),one(eltype(F)))
         mul!(view(dF,3,i,:), Dy , view(F,1,i,:),one(eltype(F)))
@@ -136,7 +136,7 @@ function RHS_D_slim!(u,t,p_RHSC) #version to optimize
         mul!(view(dF,2,:,j), Dx, view(F,3,:,j),-one(eltype(F)))
         mul!(view(dF,3,:,j), Dx, view(F,2,:,j),-one(eltype(F)),one(eltype(F)))
         end
-        if dissipation # take away dissipation
+        if dissipation # add dissipation
         @threads for i in 1:J[1]
           mul!(view(dF,1,i,:), Δy, view(F,1,i,:), σy, one(eltype(F)))
           mul!(view(dF,2,i,:), Δy, view(F,2,i,:), σy, one(eltype(F)))
@@ -148,18 +148,20 @@ function RHS_D_slim!(u,t,p_RHSC) #version to optimize
           mul!(view(dF,3,:,j), Δx, view(F,3,:,j), σx, one(eltype(F)))
           end
         end
-      else
+  else
         du[4N+1:4N+3*prod(J)] .= 0.0
-      end
+  end
 
-      @threads for j in 1:J[2]
-        for i in 1:J[1]
-            for l in 1:2
-         #dF[l,i,j] +=  S[l,i,j] # particles have negative sign!
-         @inbounds dF[l,i,j] +=  S[i,j,l]
-            end
-        end
+  if false #put to false to run maxwell in vacuum
+    @threads for j in 1:J[2]
+      for i in 1:J[1]
+          for l in 1:2
+              #dF[l,i,j] +=  S[i,j,l] # particles have negative sign!
+              @inbounds dF[l,i,j] +=  S[i,j,l]
+          end
       end
+    end
+  end
 
       interp = Interpolate(Val(Order), E, B, v, idx, y, J, Box)
       @threads for i in 1:N
@@ -238,10 +240,10 @@ function RHS_D_slim!(u,t,p_RHSC) #version to optimize
 
 function RHS_Flux(u,t,par_RHS_Flux) #version to optimize
   if nthreads() == 1
-    N, J, Box, dx, order, n, S, du, get_density!, get_current, Interpolate, maxwell, par_WENOZ = par_RHS_Flux
+    N, J, Box, dx, order, n, S, du, get_density!, get_current, Interpolate, no_maxwell, par_WENOZ = par_RHS_Flux
     #par_grid = (N, L, J, dx, order)
   else
-    Order, N, J, Box, dx, _, n, S, du, get_density!, get_current, Interpolate, maxwell, par_WENOZ = par_RHS_Flux
+    Order, N, J, Box, dx, _, n, S, du, get_density!, get_current, Interpolate, no_maxwell, par_WENOZ = par_RHS_Flux
     #par_grid = (N, L, J, dx, order)
   end
   par_grid = (N, J, Box, Val{Order})
@@ -273,7 +275,7 @@ function RHS_Flux(u,t,par_RHS_Flux) #version to optimize
     dFu = view(du,4N+1:4N+3*prod(J)) # I use them for the sources
     dF = reshape(dFu,(3,J...))
 
-    if maxwell  #take away waves if false
+    if no_maxwell == false  #take away waves if false
         wenoz!(dFu, F, par_WENOZ, t)
     end
 

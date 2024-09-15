@@ -183,23 +183,24 @@ end
 function Interpolate_All_EBv_1_slim(::Val{Order}, E::Array{Float64,3}, B::Matrix{Float64}, v::Matrix{Float64}, idx, y , J::NTuple, Box::NTuple) where {Order}
   stencil = Int64(ceil((Order+1)/2))
   D = length(J)
-  val_order = Val(Order)
+  val_order = Val(Order-1)
+
 
   if D==2
     Fi = zeros(Float64, N, 2)
     @threads for i in 1:N
       @inbounds for m in (-stencil):(stencil +1)
-        w2 = W(val_order, -y[i,2] + m)
-        idx2 = mod1(idx[i,2]+m,J[2])
+                  w2 = W(val_order, -y[i,2] + m)
+                  idx2 = mod1(idx[i,2]+m,J[2])
         @inbounds for l in (-stencil):(stencil +1)
-          w1 = W(val_order, -y[i,1] + l)
-          ws = w2 * w1
-          idx1 = mod1(idx[i,1]+l,J[1])
+                    w1 = W(val_order, -y[i,1] + l)
+                    ws = w2 * w1
+                    idx1 = mod1(idx[i,1]+l,J[1])
 
-          EBv1 = E[1,idx1,idx2] - v[i,2]*B[idx1,idx2]
-          EBv2 = E[2,idx1,idx2] + v[i,1]*B[idx1,idx2]
-          Fi[i, 1] += EBv1 * ws
-          Fi[i, 2] += EBv2 * ws
+                    EBv1 = E[1,idx1,idx2] - v[i,2]*B[idx1,idx2]
+                    EBv2 = E[2,idx1,idx2] + v[i,1]*B[idx1,idx2]
+                    Fi[i, 1] += EBv1 * ws
+                    Fi[i, 2] += EBv2 * ws
         end
       end
     end
