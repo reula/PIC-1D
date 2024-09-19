@@ -4,7 +4,19 @@ This are interpolation functions for getting the Electric field correct.
 According the SHARP the second is better. Since it keeps momentum conservation.
 Modified so as to use the smallest stencils.
 """
-@inline function Interpolate_1(order::Int64, vector::Array{Float64,1}, x, J::Int64, L::Float64)
+@inline function Interpolate_1_S(order::Int64, vector::Array{Float64,1}, x, J::Int64, L::Float64)
+  #stencil = order÷2 
+  stencil = Int64(ceil((order+1)/2))
+  #stencil = order
+  j, y = get_index_and_y(x,J,L)
+  vi = 0.0
+    for l in (-stencil):(stencil +1)
+      vi += vector[mod1(j+l,J)] * Shape(order, -y + l)
+    end
+  return vi
+end
+
+@inline function Interpolate_1_W(order::Int64, vector::Array{Float64,1}, x, J::Int64, L::Float64)
   #stencil = order÷2 
   stencil = Int64(ceil((order+1)/2))
   #stencil = order
@@ -16,7 +28,7 @@ Modified so as to use the smallest stencils.
   return vi
 end
 
-@inline function Interpolate_2(order::Int64, vector, x, J::Int64, L::Float64)
+@inline function Interpolate_2_W(order::Int64, vector, x, J::Int64, L::Float64)
   #stencil = (order+1)÷2
   stencil = Int64(ceil((order+2)/2))
   j, y = get_index_and_y(x,J,L)
@@ -29,7 +41,7 @@ end
 """
 Tested, OK
 """
-@inline function Interpolate_per(order::Int64, vector, x, J::Int64, L::Float64)
+@inline function Interpolate_per_W(order::Int64, vector, x, J::Int64, L::Float64)
   stencil = Int64(ceil((order+1)/2))
   j, y = get_index_and_y(x,J,L)
   vi = 0.0
@@ -75,7 +87,7 @@ end
 Multidimensional version 1-2D
 1D checked against the original version
 """
-@inline function Interpolate_1(order::Int64, vector, x, J::Tuple, Box::Tuple)
+@inline function Interpolate_1_W(order::Int64, vector, x, J::Tuple, Box::Tuple)
   #stencil = order÷2
   stencil = Int64(ceil((order+1)/2))
   D = length(J)
@@ -106,7 +118,7 @@ end
 """
 Interpolate function for the whole of E + v x B
 """
-@inline function Interpolate_EBv_1(order::Int64, E::Array{Float64,3}, B::Array{Float64,2}, v::Array{Float64,1}, x, J::NTuple, Box::NTuple)
+@inline function Interpolate_EBv_1_S(order::Int64, E::Array{Float64,3}, B::Array{Float64,2}, v::Array{Float64,1}, x, J::NTuple, Box::NTuple)
   #stencil = order÷2
   stencil = Int64(ceil((order+1)/2))
   D = length(J)
@@ -116,7 +128,7 @@ Interpolate function for the whole of E + v x B
     j, y = get_index_and_y(x,J[1],Box[2]-Box[1])
     vi = 0.0
     for l in (-stencil):(stencil +1)
-      vi += vector[mod1(j+l,J[1])] * W(val_order, -y + l)
+      vi += vector[mod1(j+l,J[1])] * Shape(val_order, -y + l)
     end
     return vi
   elseif D==2
@@ -129,10 +141,11 @@ Interpolate function for the whole of E + v x B
     vi = similar(E[:,1,1])
     vi .= 0.0
     @fastmath for l in (-stencil):(stencil +1)
+      s1 = Shape(val_order, -y[1] + l)
       for m in (-stencil):(stencil +1)
         @inbounds EBv[1] = E[1,mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])] - v[2]*B[mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])]
         @inbounds EBv[2] = E[2,mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])] + v[1]*B[mod1(j[1]+l,J[1]),mod1(j[2]+m,J[2])]
-        @inbounds vi[:] += EBv * W(val_order, -y[1] + l) * W(val_order, -y[2] + m)
+        @inbounds vi[:] += EBv * s1 * Shape(val_order, -y[2] + m)
       end
     end
     return vi[:]
@@ -141,7 +154,7 @@ Interpolate function for the whole of E + v x B
   end
 end
 
-@inline function Interpolate_EBv_1_slim(::Val{Order}, E::Array{Float64,3}, B::Array{Float64,2}, v::Array{Float64,1}, j, y , J::NTuple, Box::NTuple) where {Order}
+@inline function Interpolate_EBv_1_slim_W(::Val{Order}, E::Array{Float64,3}, B::Array{Float64,2}, v::Array{Float64,1}, j, y , J::NTuple, Box::NTuple) where {Order}
   #stencil = order÷2
   stencil = Int64(ceil((Order+1)/2))
   D = length(J)
@@ -180,10 +193,10 @@ end
   end
 end
 
-function Interpolate_All_EBv_1_slim(::Val{Order}, E::Array{Float64,3}, B::Matrix{Float64}, v::Matrix{Float64}, idx, y , J::NTuple, Box::NTuple) where {Order}
+function Interpolate_All_EBv_1_slim_W(::Val{Order}, E::Array{Float64,3}, B::Matrix{Float64}, v::Matrix{Float64}, idx, y , J::NTuple, Box::NTuple) where {Order}
   stencil = Int64(ceil((Order+1)/2))
   D = length(J)
-  val_order = Val(Order-1)
+  val_order = Val(Order)
 
 
   if D==2
@@ -201,6 +214,35 @@ function Interpolate_All_EBv_1_slim(::Val{Order}, E::Array{Float64,3}, B::Matrix
                     EBv2 = E[2,idx1,idx2] + v[i,1]*B[idx1,idx2]
                     Fi[i, 1] += EBv1 * ws
                     Fi[i, 2] += EBv2 * ws
+        end
+      end
+    end
+    return Fi
+  else
+    error("Not yet implemented for D=$D")
+  end
+end
+
+function Interpolate_All_EBv_1_slim_S(::Val{Order}, E::Array{Float64,3}, B::Matrix{Float64}, v::Matrix{Float64}, idx, y , J::NTuple, Box::NTuple) where {Order}
+  stencil = Int64(ceil((Order+1)/2))
+  D = length(J)
+  val_order = Val(Order)
+
+  if D==2
+    Fi = zeros(Float64, N, 2)
+    @threads for i in 1:N
+      @inbounds for m in (-stencil):(stencil +1)
+                  s2 = Shape(val_order, -y[i,2] + m)
+                  idx2 = mod1(idx[i,2]+m,J[2])
+        @inbounds for l in (-stencil):(stencil +1)
+                    s1 = Shape(val_order, -y[i,1] + l)
+                    ss = s2 * s1
+                    idx1 = mod1(idx[i,1]+l,J[1])
+
+                    EBv1 = E[1,idx1,idx2] - v[i,2]*B[idx1,idx2]
+                    EBv2 = E[2,idx1,idx2] + v[i,1]*B[idx1,idx2]
+                    Fi[i, 1] += EBv1 * ss
+                    Fi[i, 2] += EBv2 * ss
         end
       end
     end

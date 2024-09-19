@@ -152,7 +152,7 @@ function RHS_D_slim!(u,t,p_RHSC) #version to optimize
         du[4N+1:4N+3*prod(J)] .= 0.0
   end
 
-  if false #put to false to run maxwell in vacuum
+  if true #put to false to run maxwell in vacuum
     @threads for j in 1:J[2]
       for i in 1:J[1]
           for l in 1:2
