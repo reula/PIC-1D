@@ -23,12 +23,12 @@ end
 """
 Grid Differential 
 """
-function differentials(Box,J,periodic=true)
+function differentials(Box,J;periodic=true)
   D = length(J)
   dd = zeros(D)
   if periodic
     for i in 1:D
-      dd[i] = (Box[2i] - Box[2i-1])/J[i]
+      dd[i] = (Box[2i] - Box[2i-1])/J[i] 
     end
   else
     for i in 1:D

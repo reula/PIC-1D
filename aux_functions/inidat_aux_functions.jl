@@ -148,11 +148,22 @@ function norm_f_p_rel(f_p_rel, par_f_p, n, p_max)
   return (sum(F.(p)) - 0.5*(F(0) + F(p_max)))*dp*2 # the 2 is for the negative side (ONLY FOR SYMMETRIC DISTRIBUTIONS)
 end
 
+""" relativistic classical particle thermal distribution  1D"""
+f_p_rel(p,(θ,norm); m2=1.0) = exp((m2 - sqrt(m2+p^2))/θ) / sqrt(θ*π*2) / norm 
+""" relativistic classical particle thermal distribution  Multidiménsional"""
+f_p_rel(p::Array,(θ,norm); m2=1.0) = exp((m2 - sqrt(1+p'*p))/θ) / sqrt(θ*π*2)^(length(p)) / norm 
+""" relativistic classical particle thermal distribution  maximum value, used in sampling"""
+f_p_rel_max((θ,norm,D); m2=1.0) = exp(m2) / sqrt(θ*π*2)^D / norm 
 
 
-f_p_rel(p,(θ,norm)) = exp((1 - sqrt(1+p^2))/θ) / sqrt(θ*π*2) / norm 
-f_p_rel(p::Array,(θ,norm,D)) = exp((1 - sqrt(1+p'*p))/θ) / sqrt(θ*π*2)^(length(p)) / norm 
-f_p_rel_max((θ,norm,D)) = 1 / sqrt(θ*π*2)^D / norm 
+"""relativistic boson particle thermal distribution """
+f_p_bose_rel(p,(θ, μ, g, m2,  norm)) = g/(exp(sqrt(m2+p^2) - μ)/θ +1.0) / sqrt(θ*π*2) / norm 
+""" relativistic classical particle thermal distribution  Multidiménsional"""
+f_p_bose_rel(p::Array,(θ, μ, g, m2,  norm)) = g/(exp(sqrt(m2+p^2) - μ)/θ +1.0) / sqrt(θ*π*2)^(length(p)) / norm 
+""" relativistic classical particle thermal distribution  maximum value, used in sampling"""
+f_p_bose_rel_max((θ, μ, g, m2,  norm)) = 1 / sqrt(θ*π*2)^D / norm 
+
+
 
 """
 This corresponds to a distribution of two particle distributions at different temperatures 
