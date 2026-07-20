@@ -23,6 +23,11 @@ function get_density!(u, n, par_grid, shift)
   return n[:] # return rho directly (we need to subtract 1 in cases where we assume positive particles, but this is done elsewhere.)
 end
 
+function get_density!(u, n, par_grid)
+  get_density!(u, n, par_grid, 0.0)
+end
+
+
 function get_density_2D!(u, n, par_grid; yshift=0.0)
   N, Box, J, order = par_grid
   #vol = volume(Box)

@@ -5,21 +5,21 @@ using FFTW
 using FileIO
 using Base.Threads
 
-include("aux_functions.jl")
+include("aux_functions/aux_functions.jl")
 
 run_name = "try_"
 order = 5
 const L = 5
 #N = 80000
-const N = 20000
+const N = 200000
 const J = 50
 exp_Theta = 2
-exp_t = 2
+exp_t = 1
 θ = 10.0^(-exp_Theta)
 t_i = 0.0
 t_f = 10.0^(exp_t)
-M = 1001
-M_g = 100 + 1 #number of outputs, starting from the initial data
+M = 5
+M_g = 5 #number of outputs, starting from the initial data
 dt = t_f / (M-1)
 t = t_i
 #M = convert(Int64,t_f/dt)
@@ -41,7 +41,7 @@ n = zeros(J) #charge density
 S = zeros(J) #carge current
 du = zeros(2*N+J); # contains r, v and E
 
-par_dis = load("Initial_Distributions/par_dis_L5_N2_5_theta01.jld2", "par_dis");
+par_dis = load("Initial_Distributions/par_dis_rel_damped_nm_[15,0]_alp2_N5_Th3.jld2", "par_dis");
 #par_dis = load("Initial_Distributions/par_dis_L5_N2_5_theta001.jld2", "par_dis");
 #par_dis = load("Initial_Distributions/par_dis_L5_N2_5_theta0001.jld2", "par_dis");
 #par_dis = load("Initial_Distributions/par_dis_L5_N2_5_theta00001.jld2", "par_dis");

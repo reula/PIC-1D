@@ -8,6 +8,10 @@ using StaticArrays
 using Base.Threads
 using Printf
 
+if !isdefined(Main, :includet)
+    const includet = include
+end
+
 includet("aux_functions_poisson_divergence.jl")
 
 includet("aux_functions_particles.jl")

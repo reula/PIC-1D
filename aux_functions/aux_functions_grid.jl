@@ -68,7 +68,7 @@ get_index_and_y(0.4,2,1)
 dx = 0.5, j = 1, y = 0.4/0.5 = 0.8
 get_index_and_y(0.7,2,1) = j = 2, 0.2/0.5= 0.4
 """
-@inline function get_index_and_y(s::Float64, J::Int64, L::Float64; yshift=0.0)
+@inline function get_index_and_y(s::Real, J::Integer, L::Real; yshift=0.0)
   y, j = modf((s / L * J + J) % J)
   floor(Int64, j) + 1, y - yshift
 end
