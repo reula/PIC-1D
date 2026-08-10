@@ -26,7 +26,8 @@ t = t_i
 const κ = 2π/L # for Fourier Transform
 dx = L/J
 x = [dx*(i-1) for i in 1:J] ;
-p = (L, N, J, κ, dx, order)
+p = (L, N, J, dx, order)
+p_Poisson = (L, J, κ, dx)
 
 animation = false
 display = true
