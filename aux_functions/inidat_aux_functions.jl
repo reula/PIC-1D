@@ -80,7 +80,8 @@ function build_initial_data(data_name::String, pars, f_x, f_x_max, par_f_x, inte
 function build_initial_data_D(data_name::String, pars, f_x, f_x_max, par_f_x, Box_x, f_p, f_p_max, par_f_p, Box_p; symmetric=true)
       N, = pars
       D = length(Box_x)÷2
-      par_dis = zeros(D*N*2)
+      par_dis = zeros(D*N*2) 
+      @show length(par_dis)
 
       @show D
       
@@ -151,7 +152,7 @@ end
 """ relativistic classical particle thermal distribution  1D"""
 f_p_rel(p,(θ,norm); m2=1.0) = exp((m2 - sqrt(m2+p^2))/θ) / sqrt(θ*π*2) / norm 
 """ relativistic classical particle thermal distribution  Multidiménsional"""
-f_p_rel(p::Array,(θ,norm); m2=1.0) = exp((m2 - sqrt(1+p'*p))/θ) / sqrt(θ*π*2)^(length(p)) / norm 
+f_p_rel(p::Array,(θ,norm); m2=1.0) = exp((m2 - sqrt(m2+p'*p))/θ) / sqrt(θ*π*2)^(length(p)) / norm 
 """ relativistic classical particle thermal distribution  maximum value, used in sampling"""
 f_p_rel_max((θ,norm,D); m2=1.0) = exp(m2) / sqrt(θ*π*2)^D / norm 
 
@@ -195,6 +196,11 @@ it is non-relativistic. They use Ax=25.
 """
 f_p_weibel_norel(p::Array,(θ,D,Ax)) = exp(- (p'*p - p[1]^2*(Ax/(1+Ax)))/θ/2) / sqrt(θ*π*2)^D / sqrt(1+Ax)
 f_p_weibel_norel_max((θ,D,Ax)) = 1 / sqrt(θ*π*2)^D / sqrt(1+Ax)
+
+
+""" relativistic weibel classical particle thermal distribution  Multidiménsional"""
+f_p_weibel_rel(p::Array,(θ,norm, Ax); m2=1.0) = exp((m2 - sqrt(m2+p'*p- p[1]^2*(Ax/(1+Ax)))/θ)) / sqrt(θ*π*2)^(length(p)) / norm 
+
 
 
 """The following routine returns a random velocity distributed on a double Maxwellian distribution function 

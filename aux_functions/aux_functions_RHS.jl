@@ -32,13 +32,13 @@ end
 
 function RHS_D(u,t,p_RHSC)
     if nthreads() == 1
-      N, J, Box, order, n, S, du, get_density!, get_current, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, no_maxwell, dissipation = p_RHSC
+      N, J, Box, order, n, S, du, get_density!, get_current, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, no_maxwell, dissipation, factor = p_RHSC
       par_grid = (N, J, Box, order)
       get_current(u, S, par_grid)
     else
-      N, J, Box, order, n, S, du, get_density!, get_current_threads, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, no_maxwell, dissipation  = p_RHSC
+      N, J, Box, order, n, S, du, get_density!, get_current_threads, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, no_maxwell, dissipation, factor  = p_RHSC
       par_grid = (N, J, Box, order)
-      S = get_current_threads(Val(order), Box_x, u)
+      S = get_current_threads(Val(order), Box_x, u, factor)
     end
     #@show norm(S)
     make_periodic!(u,Box_x,N)
@@ -89,18 +89,17 @@ function RHS_D(u,t,p_RHSC)
         @views v = p2v(u[i*2D-D+1:i*2D])
         # v = p2v(u[range_p(i, D)])(i-1)*2*D+1+D:i*2*D
          du[range_x(i, D)] = v # relativistic factor (u is the momentum)
-         du[i*2D-D+1:i*2D] = - Interpolate(order, E, B, v, u[range_x(i, D)], J, Box)
+         du[i*2D-D+1:i*2D] = - Interpolate(order, E, B, v, u[range_x(i, D)], J, Box, factor=factor)
       end
       #@show norm(du[4N+1:4N+3*prod(J)])
     return du[:]
 end
 
 function RHS_D_slim!(u,t,p_RHSC) #version to optimize
-  Order ,N, J, Box, _, n, S, du, get_density!, get_current, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, no_maxwell, dissipation  = p_RHSC
-  (order, N, J, Box_x, order, n, S, du, get_density_2D!, get_current_slim, Interpolate_All_EBv_2_slim, Dx, Δx, σx, Dy, Δy, σy, no_maxwell, dissipation) ;
+  Order ,N, J, Box, _, n, S, du, get_density!, get_current, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, no_maxwell, dissipation, factor  = p_RHSC;
   par_grid = (N, J, Box, Val{Order})
   L = [(Box[2d] - Box[2d-1]) for d = 1:D]
-  make_periodic!(u,Box_x,N)
+  make_periodic!(u,Box,N)
   #r = [u[(i-1)*2D+d] for i in 1:N, d in 1:D] # no se como hacerlo funcionar con threads
   r = zeros(Float64,N,D)
   @threads for i in 1:N
@@ -112,10 +111,10 @@ function RHS_D_slim!(u,t,p_RHSC) #version to optimize
   idx = ones(Int64, N, 2)
   y = zeros(Float64, N, 2)
   v = zeros(Float64, N, 2)
-  n0 = N/prod(J) # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
+  #n0 = N/prod(J) # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
   get_indices_and_y_trans!(idx, y, r, J, L)
   v_trans!(Val(D), v, N, u)
-  S = get_current(Val(Order), Box_x, J, local_results, idx, y, v)
+  S = get_current(Val(Order), Box, J, local_results, idx, y, v, factor=factor)
      
   #@show norm(S)
   Fu = view(u,4N+1:4N+3*prod(J))
@@ -163,13 +162,13 @@ function RHS_D_slim!(u,t,p_RHSC) #version to optimize
     end
   end
 
-      interp = Interpolate(Val(Order), E, B, v, idx, y, J, Box)
+      interp_value = Interpolate(Val(Order), E, B, v, idx, y, J, Box, factor=factor)
       @threads for i in 1:N
         #@inbounds @views v = p2v(u[i*2D-D+1:i*2D])
         # v = p2v(u[range_p(i, D)])
         for d in 1:D
           @inbounds du[(i-1)*2D+d] = v[i,d] # relativistic factor (u is the momentum)
-          @inbounds du[i*2D-D+d] = -interp[i, d]
+          @inbounds du[i*2D-D+d] = -interp_value[i, d]
         end
       end
       return du[:]
@@ -177,11 +176,11 @@ function RHS_D_slim!(u,t,p_RHSC) #version to optimize
 
   function RHS_D_opt(u,t,p_RHSC) #version to optimize
     if nthreads() == 1
-      N, J, Box, order, n, S, du, get_density!, get_current, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation = p_RHSC
+      N, J, Box, order, n, S, du, get_density!, get_current, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation, factor = p_RHSC
       par_grid = (N, J, Box, order)
       get_current(u, S, par_grid)
     else
-      N, J, Box, order, n, S, du, get_density!, get_current_threads, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation  = p_RHSC
+      N, J, Box, order, n, S, du, get_density!, get_current_threads, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, maxwell, dissipation, factor  = p_RHSC
       par_grid = (N, J, Box, order)
       #S = get_current_threads(Val(order), Box_x, u)
     end 
@@ -233,17 +232,17 @@ function RHS_D_slim!(u,t,p_RHSC) #version to optimize
         @inbounds @views v = p2v(u[i*2D-D+1:i*2D])
         # v = p2v(u[range_p(i, D)])
         @inbounds du[range_x(i, D)] = v # relativistic factor (u is the momentum)
-        @inbounds du[i*2D-D+1:i*2D] = - Interpolate(order, E, B, v, u[range_x(i, D)], J, Box)
+        @inbounds du[i*2D-D+1:i*2D] = - Interpolate(order, E, B, v, u[range_x(i, D)], J, Box, factor=factor)
       end
       return du[:]
   end
 
 function RHS_Flux(u,t,par_RHS_Flux) #version to optimize
   if nthreads() == 1
-    N, J, Box, dx, order, n, S, du, get_density!, get_current, Interpolate, no_maxwell, par_WENOZ = par_RHS_Flux
+    N, J, Box, dx, order, n, S, du, get_density!, get_current, Interpolate, no_maxwell, par_WENOZ, factor = par_RHS_Flux
     #par_grid = (N, L, J, dx, order)
   else
-    Order, N, J, Box, dx, _, n, S, du, get_density!, get_current, Interpolate, no_maxwell, par_WENOZ = par_RHS_Flux
+    Order, N, J, Box, dx, _, n, S, du, get_density!, get_current, Interpolate, no_maxwell, par_WENOZ, factor = par_RHS_Flux
     #par_grid = (N, L, J, dx, order)
   end
   par_grid = (N, J, Box, Val{Order})
@@ -260,10 +259,10 @@ function RHS_Flux(u,t,par_RHS_Flux) #version to optimize
   idx = ones(Int64, N, 2)
   y = zeros(Float64, N, 2)
   v = zeros(Float64, N, 2)
-  n0 = N/prod(J) # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
+  #n0 = N/prod(J) # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
   get_indices_and_y_trans!(idx, y, r, J, L)
   v_trans!(Val(D), v, N, u)
-  S = get_current(Val(Order), Box_x, J, local_results, idx, y, v)
+  S = get_current(Val(Order), Box_x, J, local_results, idx, y, v, factor=factor)
      
     #@show norm(S)
     Fu = view(u,4N+1:4N+3*prod(J))
@@ -288,7 +287,7 @@ function RHS_Flux(u,t,par_RHS_Flux) #version to optimize
         end
       end
 
-      interp = Interpolate(Val(Order), E, B, v, idx, y, J, Box)
+      interp = Interpolate(Val(Order), E, B, v, idx, y, J, Box, factor)
       @threads for i in 1:N
         #@inbounds @views v = p2v(u[i*2D-D+1:i*2D])
         # v = p2v(u[range_p(i, D)])

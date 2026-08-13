@@ -8,16 +8,17 @@ shift can have the values 0 or 1/2 depending whether we want the density at grid
 """
 function get_density!(u, n, par_grid, shift)
   N, L, J, dx, order = par_grid
-  n0 = N/L
+  n0 = N/L*factor^2
   r = view(u,1:N)
   fill!(n,0.0)
   # Evaluate number density.
-  bound = Int64(ceil(order/2))
+  factor = 10.0 # this makes the shapes larger than the dx by that factor
+  bound = Int64(ceil(order/2))*Int64(factor)
   for i in 1:N
     @inbounds j, y = get_index_and_y(r[i],J,L)
     y += - shift
     for l in (-bound):(bound+1) 
-      @inbounds n[mod1(j + l, J)] += Shape(order, -y + l) / dx / n0; # the dx here is from the different definition from the paper
+      @inbounds n[mod1(j + l, J)] += Shape(order, (-y + l)/factor) / dx / n0; # the dx here is from the different definition from the paper
     end
   end
   return n[:] # return rho directly (we need to subtract 1 in cases where we assume positive particles, but this is done elsewhere.)
@@ -28,7 +29,7 @@ function get_density!(u, n, par_grid)
 end
 
 
-function get_density_2D!(u, n, par_grid; yshift=0.0)
+function get_density_2D!(u, n, par_grid; yshift=0.0, factor=1.0)
   N, Box, J, order = par_grid
   #vol = volume(Box)
   fill!(n,0.0)
@@ -38,12 +39,13 @@ function get_density_2D!(u, n, par_grid; yshift=0.0)
   if D != length(J) 
     error("dimension mismach")
    end
-  n0 = N/prod(J) #/volume(Box)
+  n0 = N/prod(J)*factor^2 #/volume(Box)
   j = [1,1]
   y = [0.0,0.0]
   #@show u
   # Evaluate number density.
-  bound = Int64(ceil(order/2))
+  #factor = 10.0 # this makes the shapes larger than the dx by that factor
+  bound = Int64(ceil(order/2))*Int64(factor)
   for i in 1:N
     s = (i-1)*2D + 1
     u_r = view(u,s:(s+D-1))
@@ -53,7 +55,7 @@ function get_density_2D!(u, n, par_grid; yshift=0.0)
     for l in (-bound):(bound+1) 
       for m in (-bound):(bound+1)
       #@inbounds n[mod1(j + l, J)] += Shape(val_order, -y + l) / dx / n0; # the dx here is from the different definition from the paper
-      @inbounds n[mod1(j[1] + l, J[1]), mod1(j[2] + m, J[2])] += Shape(val_order, -y[1] + l) * Shape(val_order, -y[2] + m)/ n0
+      @inbounds n[mod1(j[1] + l, J[1]), mod1(j[2] + m, J[2])] += Shape(val_order, (-y[1] + l)/factor) * Shape(val_order, (-y[2] + m)/factor)/ n0
       end
     end
   end
@@ -78,7 +80,7 @@ function get_density_threads_2D!(u, n, par, shift)
   n0 = N/prod(J)#/volume(Box)
   # Evaluate number density.
   bound = Int64(ceil(order/2))
-  @threads  for i in 1:N
+  @threads :static for i in 1:N
               #s[threadid()] = (i-1)*2D + 1
               #u_r[:,threadid()] = view(u,s[threadid()]:(s[threadid()]+D-1))
               #j[:,threadid()], y[:,threadid()] = get_index_and_y!(j[:,threadid()], y[:,threadid()], u_r[:,threadid()],J , Box) 
@@ -92,7 +94,7 @@ function get_density_threads_2D!(u, n, par, shift)
             end
   n .= 0.0
   #@show n, Tn
-  @threads for j in 1:J[2]
+  @threads :static for j in 1:J[2]
             for i in 1:J[1]
               for t in 1:nthreads()
                 n[i,j] += Tn[i,j,t]/n0 # the dx here is from the different definition from the paper
@@ -111,7 +113,7 @@ function get_density_threads!(u, n, p, shift)
   n0 = N/L
   bound = Int64(ceil(order/2))
   # Evaluate number density.
-  @threads for i in 1:N
+  @threads :static for i in 1:N
     @inbounds j[threadid()], y[threadid()] = get_index_and_y(u[i], J, L)
     y[threadid()] += - shift
     for l in (-bound):-j[threadid()]
@@ -125,7 +127,7 @@ function get_density_threads!(u, n, p, shift)
     end
   end
   n .= zeros(Float64)
-  @threads for i in 1:J
+  @threads :static for i in 1:J
     for t in 1:nthreads()
       @inbounds n[i] += Tn[i, t]/dx/n0 # the dx here is from the different definition from the paper
     end
@@ -152,18 +154,18 @@ end
 // array r(0:N-1) of electron coordinates.
 """
 
-function get_current_rel!(u, S, par_grid)
+function get_current_rel!(u, S, par_grid; factor=1.0)
   N, L, J, dx, order = par_grid
   r = view(u,1:N)
   p = view(u,N+1:2N) # in the relativistic version we compute p instead of v
   fill!(S,0.0)
-  n0 = N/L
-  bound = Int64(ceil(order/2))
+  n0 = N/L*factor^2
+  bound = Int64(ceil(order/2))*Int64(factor)
   for i in 1:N
     @inbounds j, y = get_index_and_y(r[i],J,L)
     @inbounds v = p2v(p[i]) / dx / n0 # the dx here is from the different definition from the paper
     for l in (-bound):(bound+1) 
-      @inbounds S[mod1(j + l, J)] += Shape(order, -y + l) * v;
+      @inbounds S[mod1(j + l, J)] += Shape(order, (-y + l)/factor) * v;
     end
   end
   return S[:] # allready normalized with n0
@@ -177,7 +179,7 @@ function get_current_rel_threads!(u, S, p)
   TS .= zeros(Float64)
   n0 = N/L
   bound = Int64(ceil(order/2))
-  @threads for i in 1:N
+  @threads :static for i in 1:N
     @inbounds j[threadid()], y[threadid()] = get_index_and_y(u[i], J, L)
     @inbounds v = p2v(u[N+i]) / dx / n0 # the dx here is from the different definition from the paper
     for l in (-bound):-j[threadid()]
@@ -204,19 +206,19 @@ function get_current_rel_threads!(u, S, p)
   S[:]
 end
     
-function get_current_rel_2D!(u, S, par_grid;shift=0.0)
+function get_current_rel_2D!(u, S, par_grid;shift=0.0,factor=1.0)
   N, J, Box, order = par_grid 
   D = 2
    if D != length(J) 
     error("dimension mismach")
    end
   #vol = volume(Box)
-  bound = Int64(ceil(order/2))
+  bound = Int64(ceil(order/2))*Int64(factor)
   S .= 0.0
   #fill!(S,[0.0,0.0])
   v = Array{Float64}(undef,2)
   #n0 = N/vol # correct expression but not needed
-  n0 = N/prod(J)  # dividimos aquí para hacerlo más eficiente.
+  n0 = N / prod(J) * factor^2  # dividimos aquí para hacerlo más eficiente.
   for i in 1:N
     s = (i-1)*2D + 1
     r = view(u,s:s+D-1)
@@ -226,11 +228,12 @@ function get_current_rel_2D!(u, S, par_grid;shift=0.0)
     @inbounds get_index_and_y!(j,y,r,J,Box)
     @inbounds  y[:] .= y[:] .- shift # shift must be the same in all directions!
     #@inbounds v = p2v(p) / vol / n0 # correct but can be made simpler
-    @inbounds v = p2v(p) / n0 # dividimos aquí para hacerlo más eficiente.
+    @inbounds v = p2v(p) / n0 / factor^2 # dividimos aquí para hacerlo más eficiente.
     for l in (-bound):(bound+1) 
+      s1 = Shape(order, (-y[1] + l)/factor)
       for m in (-bound):(bound+1)
       #@inbounds S[:,mod1(j[1] + l, J[1]), mod1(j[2] + m, J[2])] += Shape(order, -y[1] + l) * Shape(order, -y[2] + m) * v;
-      @inbounds S[mod1(j[1] + l, J[1]), mod1(j[2] + m, J[2]),:] += Shape(order, -y[1] + l) * Shape(order, -y[2] + m) * v;
+      @inbounds S[mod1(j[1] + l, J[1]), mod1(j[2] + m, J[2]),:] += s1 * Shape(order, (-y[2] + m)/factor) * v;
     end
     end
   end
@@ -260,7 +263,7 @@ function get_current_threads_2D_vector!(u, S, par; shift=0.0)
   #s = [0 for i in 1:nthreads()]
   n0 = N/prod(J)  # dividimos aquí para hacerlo más eficiente.
   # Evaluate number density.
-   @threads for i in 1:N
+   @threads :static for i in 1:N
               #s = (i-1)*2D + 1
               #r = view(u,s:s+D-1)
               #p = view(u,s+D:s+2*D-1) # in the relativistic version we compute p instead of v
@@ -279,7 +282,7 @@ function get_current_threads_2D_vector!(u, S, par; shift=0.0)
   fill!(S,[0.0,0.0])
   #S .= [0.0,0.0]
   #@show n, Tn
-  @threads for j in 1:J[2]
+  @threads :static for j in 1:J[2]
             for i in 1:J[1]
               for t in 1:nthreads()
                  S[i,j] += TS[:,i,j,t] # the dx here is from the different definition from the paper
@@ -293,12 +296,12 @@ end
 version of get_current_threads_2D but with shorter stencils and different indexing for the arrays.
 The output is an array of type (2,J1,J2). Checked and working OK against the other version and against the serial version.
 """
-function get_current_threads_2D!(u::Array{Float64,1}, S::Array{Float64,3}, par; yshift=0.0) #WITH DIFFERENT LAYOUT
+function get_current_threads_2D!(u::Array{Float64,1}, S::Array{Float64,3}, par; yshift=0.0, factor=1.0) #WITH DIFFERENT LAYOUT
   #par_grid, Tn, j, y = par # no vale la pena en cuanto a tiempo ni memoria
   par_grid, TS = par
   N, J, Box, order = par_grid
   D = 2::Int64
-  bound = Int64(ceil(order/2))
+  bound = Int64(ceil(order/2))*Int64(factor)
   if D != length(J) 
     error("dimension mismach, D = $D, J = $(J)")
   end
@@ -310,9 +313,9 @@ function get_current_threads_2D!(u::Array{Float64,1}, S::Array{Float64,3}, par; 
   v = Array{Float64}(undef,2,nthreads())
   TS .= 0.0 
   #s = [0 for i in 1:nthreads()]
-  n0 = N/prod(J)  # dividimos aquí para hacerlo más eficiente.
+  n0 = N / prod(J) * factor^2  # dividimos aquí para hacerlo más eficiente.
   # Evaluate number density.
-  @threads for i in 1:N
+  @threads :static for i in 1:N
     #s = (i-1)*2D + 1
     #r = view(u,s:s+D-1)
     #p = view(u,s+D:s+2*D-1) # in the relativistic version we compute p instead of v
@@ -326,7 +329,7 @@ function get_current_threads_2D!(u::Array{Float64,1}, S::Array{Float64,3}, par; 
     for l in (-bound):(bound+1)
       for m in (-bound):(bound+1)
  #        @inbounds TS[threadid(), :, mod1(j[1, threadid()] + l, J[1]), mod1(j[2, threadid()] + m, J[2])] += Shape(order, -y[1, threadid()] + l) * Shape(order, -y[2, threadid()] + m) * v[:, threadid()]
-        @views TS[:, mod1(j[1, threadid()] + l, J[1]), mod1(j[2, threadid()] + m, J[2]), threadid()] += Shape(order, -y[1, threadid()] + l) * Shape(order, -y[2, threadid()] + m) * v[:, threadid()]
+        @views TS[:, mod1(j[1, threadid()] + l, J[1]), mod1(j[2, threadid()] + m, J[2]), threadid()] += Shape(order, (-y[1, threadid()] + l)/factor) * Shape(order, (-y[2, threadid()] + m)/factor) * v[:, threadid()]
       end
     end
   end
@@ -334,7 +337,7 @@ function get_current_threads_2D!(u::Array{Float64,1}, S::Array{Float64,3}, par; 
   fill!(S,Float64(0.0))
   #S .= [0.0,0.0]
   #@show n, Tn
-  @threads for t in 1:nthreads()
+  @threads :static for t in 1:nthreads()
             for j in 1:J[2]
               for i in 1:J[1] 
                 for l in 1:2
@@ -361,7 +364,7 @@ mutable struct Density2DTrans
   end
 end
 
-function (storage::Density2DTrans)(::Val{Order}, Box::NTuple{4,Float64}, u::Vector{Float64}; shift::Float64=0.0) where {Order}
+function (storage::Density2DTrans)(::Val{Order}, Box::NTuple{4,Float64}, u::Vector{Float64}; shift::Float64=0.0, factor=1.0) where {Order}
   N, J, local_results, idx, y = storage.N, storage.J, storage.local_results, storage.idx, storage.y
 
   D::Int64 = 2
@@ -369,8 +372,8 @@ function (storage::Density2DTrans)(::Val{Order}, Box::NTuple{4,Float64}, u::Vect
     error("dimension mismatch")
   end
 
-  n0 = N/prod(J) # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
-  bound = static_bound(Val(Order))
+  n0 = N / prod(J) * factor^2 # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
+  bound = Int64(ceil(order/2))*Int64(factor)
 
   L = [(Box[2d] - Box[2d-1]) for d = 1:D]
   r = [u[(i-1)*2D+d] for i = 1:N, d = 1:D]
@@ -383,13 +386,13 @@ function (storage::Density2DTrans)(::Val{Order}, Box::NTuple{4,Float64}, u::Vect
 
   nlocals = Threads.nthreads()
   local_results .= 0.0
-  @threads for i in 1:N
+  @threads :static for i in 1:N
     lid = Threads.threadid()
     for m in (-bound):(bound+1)
-      @inbounds sm = Shape(Val(Order), -y[i, 2] + m)/n0 #we divide here by n0 so that everything is taken care of
+      @inbounds sm = Shape(Val(Order), (-y[i, 2] + m)/factor) #we divide here by n0 so that everything is taken care of
       for l in (-bound):(bound+1)
-        @inbounds sl = Shape(Val(Order), -y[i, 1] + l)
-        @fastmath @inbounds local_results[mod1(idx[i, 1] + l, J[1]), mod1(idx[i, 2] + m, J[2]), lid] += sm * sl
+        @inbounds sl = Shape(Val(Order), (-y[i, 1] + l)/factor)
+        @inbounds local_results[mod1(idx[i, 1] + l, J[1]), mod1(idx[i, 2] + m, J[2]), lid] += sm * sl / n0
       end
     end
   end
@@ -403,8 +406,8 @@ function v_trans(::Val{D}, N, u) where {D}
 end
 
 function v_trans!(::Val{D}, v, N, u) where {D}
-  @threads for i in 1:N
-      @fastmath @inbounds @views vtmp = p2v(u[i*2D-D+1:i*2D])
+  @threads :static for i in 1:N
+      @inbounds @views vtmp = p2v(u[i*2D-D+1:i*2D])
       for d in 1:D
           @inbounds v[i, d] = vtmp[d]
       end
@@ -430,7 +433,7 @@ mutable struct Current2DTrans
 end
 
 
-function (storage::Current2DTrans)(::Val{Order}, Box::NTuple{4,Float64}, u::Vector{Float64}; shift::Float64=0.0) where {Order}
+function (storage::Current2DTrans)(::Val{Order}, Box::NTuple{4,Float64}, u::Vector{Float64}; shift::Float64=0.0, factor=1.0) where {Order}
   N, J, local_results, idx, y, v = storage.N, storage.J, storage.local_results, storage.idx, storage.y, storage.v
 
   D::Int64 = 2
@@ -438,8 +441,8 @@ function (storage::Current2DTrans)(::Val{Order}, Box::NTuple{4,Float64}, u::Vect
     error("dimension mismatch")
   end
 
-  n0 = N/prod(J) # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
-  bound = static_bound(Val(Order))
+  n0 = N / prod(J) * factor^2 # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
+  bound = static_bound(Val(Order))*Int64(factor)
 
   L = [(Box[2d] - Box[2d-1]) for d = 1:D]
   r = [u[(i-1)*2D+d] for i in 1:N, d in 1:D]
@@ -451,12 +454,12 @@ function (storage::Current2DTrans)(::Val{Order}, Box::NTuple{4,Float64}, u::Vect
 
   nlocals = Threads.nthreads()
   local_results .= 0.0
-  @threads for i in 1:N
+  @threads :static for i in 1:N
     lid = Threads.threadid()
     for m in (-bound):(bound+1)
       @inbounds sm = Shape(Val(Order), -y[i, 2] + m)
       for l in (-bound):(bound+1)
-        @inbounds sl = Shape(Val(Order), -y[i, 1] + l)
+        @inbounds sl = Shape(Val(Order), (-y[i, 1] + l)/factor)
         for d in 1:D
           @fastmath @inbounds local_results[mod1(idx[i, 1] + l, J[1]), mod1(idx[i, 2] + m, J[2]), d, lid] += sm * sl * v[i, d]
         end
@@ -466,14 +469,14 @@ function (storage::Current2DTrans)(::Val{Order}, Box::NTuple{4,Float64}, u::Vect
   reduce(+, eachslice(local_results, dims=4))/n0
 end
 
-function get_current_slim(::Val{Order}, Box::NTuple{4,Float64}, J, local_results, idx, y, v; shift::Float64=0.0) where {Order}
+function get_current_slim(::Val{Order}, Box::NTuple{4,Float64}, J, local_results, idx, y, v; shift::Float64=0.0, factor=1.0) where {Order}
   D::Int64 = 2
   if D != length(J)
     error("dimension mismatch")
   end
 
-  n0 = N/prod(J) # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
-  bound = static_bound(Val(Order))
+  n0 = N / prod(J) * factor^2 # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
+  bound = Int64(ceil(order/2))*Int64(factor)
 
   #L = [(Box[2d] - Box[2d-1]) for d = 1:D]
   #r = [u[(i-1)*2D+d] for i = 1:N, d = 1:D]
@@ -486,14 +489,14 @@ function get_current_slim(::Val{Order}, Box::NTuple{4,Float64}, J, local_results
 
   #nlocals = Threads.nthreads()
   local_results .= 0.0
-  @threads for i in 1:N
+  @threads :static for i in 1:N
     lid = Threads.threadid()
     for m in (-bound):(bound+1)
-      @inbounds sm = Shape(Val(Order), -y[i, 2] + m)
+      @inbounds sm = Shape(Val(Order), (-y[i, 2] + m)/factor)
       for l in (-bound):(bound+1)
-        @inbounds sl = Shape(Val(Order), -y[i, 1] + l)
+        @inbounds sl = Shape(Val(Order), (-y[i, 1] + l)/factor)
         for d in 1:D
-          @fastmath @inbounds local_results[mod1(idx[i, 1] + l, J[1]), mod1(idx[i, 2] + m, J[2]), d, lid] += sm * sl * v[i, d]
+          @inbounds local_results[mod1(idx[i, 1] + l, J[1]), mod1(idx[i, 2] + m, J[2]), d, lid] += sm * sl * v[i, d]
         end
       end
     end
