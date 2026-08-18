@@ -61,6 +61,7 @@ So this definition DIFFERS FROM THE PAPER BY A DX!
 They have support on -order/2 =< y =< order/2
 The orders goes from 1 to 6 (order zero is not defined)
 While the orders of W goes from 0 to 5
+You can dilate shape functions with a factor, the new shape function with the same integral value (1) is S(x/factor)/factor
 """
 @inline function Shape(order::Int, y::Float64)
   return W(order - 1, y)
