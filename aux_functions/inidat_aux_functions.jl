@@ -92,13 +92,16 @@ function build_initial_data_D(data_name::String, pars, f_x, f_x_max, par_f_x, Bo
       end
       if symmetric
       # We set part of the distribution in antisymmetric form so that the total momentum vanishes.
-        for i in 1:2D:D*N
-          par_dis[i+D:(i-1)+2D] = random_sampling_from_distribution_D(f_p,f_p_max,par_f_p,Box_p)
-          par_dis[D*N + i+D:D*N + i-1+2D] = - par_dis[i+D:(i-1)+2D]
+        for i in 1:N
+          p = random_sampling_from_distribution_D(f_p,f_p_max,par_f_p,Box_p)
+          par_dis[(i-1)*2*D+D+1:(i-1)*2*D+2D] = p
+          if i <= N÷2
+            par_dis[(i-1 + N÷2)*2*D+D+1:(i-1 + N÷2)*2*D+2D] = -p
+          end
         end
       else
-        for i in 1:2D:2D*N
-          par_dis[i+D:(i-1)+2D] = random_sampling_from_distribution_D(f_p,f_p_max,par_f_p,Box_p)
+        for i in 1:N
+          par_dis[(i-1)*2*D+D+1:(i-1)*2*D+2D] = random_sampling_from_distribution_D(f_p,f_p_max,par_f_p,Box_p)
         end
       end
   

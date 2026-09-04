@@ -149,7 +149,7 @@ function get_local_averages_threads_D(u,par_grid)#, par_f)
     return ρ, S, E_field, B_field, Energy_K, Energy_E, E_field_Total, p_T, Q_T, S_T, T, θ_m #, E_mode
 end
 
-function load_averages(file_name, j, par_grid, pars_f)
+function load_averages(file_name, j, u, par_grid, pars_f)
       ρ, S, Efield, Energy_K, Energy_E, EField_T, p_T, Q_T, S_T, T, E_mode = get_local_averages_threads(u,par_grid, pars_f)
       tiempo = @sprintf("%05d", j)
       jldopen(file_name, "a+") do file
@@ -167,7 +167,7 @@ function load_averages(file_name, j, par_grid, pars_f)
       end
   end
   
-function load_averages_D(file_name, j, par_grid)#, pars_f)
+function load_averages_D(file_name, j, u, par_grid)#, pars_f)
     ρ, S, E_field, B_field, Energy_K, Energy_E, E_field_T, p_T, Q_T, S_T, T, θ_m #=, E_mode=# = get_local_averages_threads_D(u,par_grid)#, pars_f)
     tiempo = @sprintf("%05d", j)
     jldopen(file_name, "a+") do file

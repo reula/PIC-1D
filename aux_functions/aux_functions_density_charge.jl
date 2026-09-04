@@ -13,7 +13,7 @@ function get_density!(u, n, par_grid, shift)
   fill!(n,0.0)
   # Evaluate number density.
   factor = 10.0 # this makes the shapes larger than the dx by that factor
-  bound = Int64(ceil(order/2))*Int64(factor)
+  bound = Int64(ceil(Order/2))*Int64(factor)
   for i in 1:N
     @inbounds j, y = get_index_and_y(r[i],J,L)
     y += - shift
@@ -45,7 +45,7 @@ function get_density_2D!(u, n, par_grid; yshift=0.0, factor=1.0)
   #@show u
   # Evaluate number density.
   #factor = 10.0 # this makes the shapes larger than the dx by that factor
-  bound = Int64(ceil(order/2))*Int64(factor)
+  bound = Int64(ceil(Order/2))*Int64(factor)
   for i in 1:N
     s = (i-1)*2D + 1
     u_r = view(u,s:(s+D-1))
@@ -160,7 +160,7 @@ function get_current_rel!(u, S, par_grid; factor=1.0)
   p = view(u,N+1:2N) # in the relativistic version we compute p instead of v
   fill!(S,0.0)
   n0 = N/L*factor^2
-  bound = Int64(ceil(order/2))*Int64(factor)
+  bound = Int64(ceil(Order/2))*Int64(factor)
   for i in 1:N
     @inbounds j, y = get_index_and_y(r[i],J,L)
     @inbounds v = p2v(p[i]) / dx / n0 # the dx here is from the different definition from the paper
@@ -213,7 +213,7 @@ function get_current_rel_2D!(u, S, par_grid;shift=0.0,factor=1.0)
     error("dimension mismach")
    end
   #vol = volume(Box)
-  bound = Int64(ceil(order/2))*Int64(factor)
+  bound = Int64(ceil(Order/2))*Int64(factor)
   S .= 0.0
   #fill!(S,[0.0,0.0])
   v = Array{Float64}(undef,2)
@@ -301,7 +301,7 @@ function get_current_threads_2D!(u::Array{Float64,1}, S::Array{Float64,3}, par; 
   par_grid, TS = par
   N, J, Box, order = par_grid
   D = 2::Int64
-  bound = Int64(ceil(order/2))*Int64(factor)
+  bound = Int64(ceil(Order/2))*Int64(factor)
   if D != length(J) 
     error("dimension mismach, D = $D, J = $(J)")
   end
@@ -373,7 +373,7 @@ function (storage::Density2DTrans)(::Val{Order}, Box::NTuple{4,Float64}, u::Vect
   end
 
   n0 = N / prod(J) * factor^2 # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
-  bound = Int64(ceil(order/2))*Int64(factor)
+  bound = Int64(ceil(Order/2))*Int64(factor)
 
   L = [(Box[2d] - Box[2d-1]) for d = 1:D]
   r = [u[(i-1)*2D+d] for i = 1:N, d = 1:D]
@@ -457,7 +457,7 @@ function (storage::Current2DTrans)(::Val{Order}, Box::NTuple{4,Float64}, u::Vect
   @threads :static for i in 1:N
     lid = Threads.threadid()
     for m in (-bound):(bound+1)
-      @inbounds sm = Shape(Val(Order), -y[i, 2] + m)
+      @inbounds sm = Shape(Val(Order), (-y[i, 2] + m)/factor)
       for l in (-bound):(bound+1)
         @inbounds sl = Shape(Val(Order), (-y[i, 1] + l)/factor)
         for d in 1:D
@@ -476,7 +476,7 @@ function get_current_slim(::Val{Order}, Box::NTuple{4,Float64}, J, local_results
   end
 
   n0 = N / prod(J) * factor^2 # dividimos también por el número total de grillas para obtener una densidad independiente del grillado.
-  bound = Int64(ceil(order/2))*Int64(factor)
+  bound = Int64(ceil(Order/2))*Int64(factor)
 
   #L = [(Box[2d] - Box[2d-1]) for d = 1:D]
   #r = [u[(i-1)*2D+d] for i = 1:N, d = 1:D]

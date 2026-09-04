@@ -86,7 +86,7 @@ function get_temperature_rel_D(u,N,D;m=1)
     sv[d] = sum(u[D+d:2D:N*2D])
     sv2[d] = sum(u[D+d:2D:N*2D].^2)
   end
-  return m*(sum(sv2) - sv'*sv)/N/D
+  return m*(sum(sv2) - sv'*sv/N)/N/D
 end
 
 

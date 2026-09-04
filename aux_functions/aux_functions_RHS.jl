@@ -34,7 +34,7 @@ function RHS_D(u,t,p_RHSC)
     if nthreads() == 1
       N, J, Box, order, n, S, du, get_density!, get_current, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, no_maxwell, dissipation, factor = p_RHSC
       par_grid = (N, J, Box, order)
-      get_current(u, S, par_grid)
+      get_current(u, S, par_grid; factor=factor)
     else
       N, J, Box, order, n, S, du, get_density!, get_current_threads, Interpolate,  Dx, Δx, σx, Dy, Δy, σy, no_maxwell, dissipation, factor  = p_RHSC
       par_grid = (N, J, Box, order)

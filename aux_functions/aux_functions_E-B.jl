@@ -99,12 +99,13 @@
 
 """No las estamos usando"""
 function div_E!(Div,E,Dx,Dy,J)
-    for i in 1:J[1]
-        mul!(Div[i,:],Dy,E[2,i,:],one(eltype(Div)))
+    @views for i in 1:J[1]
+        mul!(Div[i,:], Dy, E[2,i,:], one(eltype(Div)))
     end
-    for j in 1:J[2]
-        mul!(Div[:,j],Dx,E[1,:,j],one(eltype(Div)),one(eltype(Div)))
+    @views for j in 1:J[2]
+        mul!(Div[:,j], Dx, E[1,:,j], one(eltype(Div)), one(eltype(Div)))
     end
+    return Div
 end
 
 function div_E(E,Dx,Dy,J)
